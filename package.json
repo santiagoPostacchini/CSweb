@@ -1,0 +1,23 @@
+{
+  "name": "csweb",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Counter-Strike 1.6 en el navegador (Xash3D-FWGS WebAssembly) + servidor dedicado LAN via WebRTC",
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "build": "vite build",
+    "start": "node server/index.mjs",
+    "dev:client": "vite"
+  },
+  "dependencies": {
+    "node-datachannel": "0.33.4",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "fflate": "0.8.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "xash3d-fwgs": "file:vendor/xash3d-fwgs"
+  }
+}

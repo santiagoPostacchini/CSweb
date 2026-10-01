@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0e0f0c">
+    <title>Counter-Strike 1.6 — LAN</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='22' fill='none' stroke='%23e8a33d' stroke-width='5'/%3E%3Cpath d='M32 4v16M32 44v16M4 32h16M44 32h16' stroke='%23e8a33d' stroke-width='5'/%3E%3C/svg%3E">
+    <script type="module" src="./main.ts"></script>
+</head>
+<body>
+<canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+
+<main id="lobby" class="panel">
+    <header>
+        <div class="logo" aria-hidden="true">
+            <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="22"/><path d="M32 4v16M32 44v16M4 32h16M44 32h16"/></svg>
+        </div>
+        <div>
+            <h1>Counter-Strike 1.6</h1>
+            <p class="sub">Partida LAN en el navegador</p>
+        </div>
+    </header>
+
+    <section class="server">
+        <div class="row"><span>Servidor</span><strong id="server-name">…</strong><i id="server-online" title="Estado del servidor"></i></div>
+        <div class="row"><span>Mapa</span><strong id="server-map">…</strong></div>
+        <div class="row"><span>Jugadores web</span><strong id="server-players">…</strong></div>
+    </section>
+
+    <form id="form" autocomplete="on">
+        <label>Tu nombre
+            <input id="name" name="name" maxlength="31" required autofocus>
+        </label>
+        <label id="password-row" hidden>Contraseña del servidor
+            <input id="password" name="password" type="password" maxlength="64">
+        </label>
+        <label class="check">
+            <input id="touch" type="checkbox"> Controles táctiles
+        </label>
+        <button id="play" type="submit">Jugar</button>
+    </form>
+
+    <p id="error" class="error" hidden></p>
+    <p id="download-hint" class="hint"></p>
+
+    <details class="help">
+        <summary>Controles</summary>
+        <ul>
+            <li><kbd>Click</kbd> captura el mouse · <kbd>Esc</kbd> lo libera / menú</li>
+            <li><kbd>M</kbd> elegir equipo · <kbd>B</kbd> comprar · <kbd>1</kbd>–<kbd>9</kbd> opciones del menú</li>
+            <li><kbd>W A S D</kbd> moverse · <kbd>Espacio</kbd> saltar · <kbd>Ctrl</kbd> agacharse</li>
+            <li><kbd>Y</kbd> chat · <kbd>Tab</kbd> puntajes · <kbd>`</kbd> consola</li>
+        </ul>
+    </details>
+</main>
+
+<div id="loading" class="panel" hidden>
+    <p id="loading-text">Cargando…</p>
+    <div class="progress"><div id="bar" class="indeterminate"></div></div>
+    <p id="loading-detail" class="hint"></p>
+</div>
+
+<div id="toast" role="status"></div>
+</body>
+</html>
