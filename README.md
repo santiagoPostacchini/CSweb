@@ -24,15 +24,31 @@ la lógica del servidor es [ReGameDLL_CS](https://github.com/rehlds/ReGameDLL_CS
 
 ## Inicio rápido
 
-1. Tener **Node.js 20+** instalado en la PC anfitrión (`node --version`).
+1. Tener **Node.js 20+** y **Counter-Strike 1.6 instalado por Steam** en la PC anfitrión
+   (se detecta solo; también sirve copiar la carpeta `Half-Life` a `steamapps/Half-Life` dentro del proyecto).
 2. Doble click en **`INICIAR-SERVIDOR.bat`**.
    La primera vez instala dependencias, prepara el servidor y empaqueta los assets (~30 s).
-3. La consola muestra el link para compartir, por ejemplo `http://10.3.3.3:27016`.
+3. La consola muestra el link para compartir, por ejemplo `https://10.3.3.3:27016`.
    Pasáselo a tus compañeros (tienen que estar en **la misma red**).
+   La primera vez el navegador avisa que el certificado no es de confianza (es autofirmado):
+   **"Configuración avanzada" → "Continuar a 10.3.3.3"**. También anda por `http://` sin ese aviso,
+   pero entonces el navegador no deja bloquear Ctrl+W (ver abajo).
 4. Si Windows pregunta por el firewall al iniciar, **permitir** el acceso. Si no aparece el aviso
    o tus compañeros no pueden conectarse, ejecutá **`ABRIR-FIREWALL.bat`** (pide permisos de administrador).
 
 Para jugar vos también desde la misma PC, abrí `http://localhost:27016`.
+
+### Desde otra PC
+
+- **Para jugar** no hace falta nada: sólo el link.
+- **Para ser anfitrión desde otra PC**: instalá Node.js y CS 1.6 (Steam) y cloná el repo:
+
+```bash
+git clone https://github.com/santiagoPostacchini/CSweb.git
+```
+
+  Después doble click en `INICIAR-SERVIDOR.bat`. Los archivos de Valve no están en el repo (ni deben estarlo):
+  se toman de la instalación de Steam de esa PC.
 
 Sin el `.bat`:
 
@@ -48,7 +64,12 @@ npm start
 
 ## Jugando
 
-- Click en el juego para capturar el mouse, **Esc** lo libera y abre el menú.
+- Click en el juego para capturar el mouse, **Esc** abre el menú.
+- **Ctrl+W no cierra la pestaña**: al apretar *Jugar* se entra en pantalla completa con el teclado bloqueado
+  (Keyboard Lock API), así Ctrl+W, Ctrl+T, Ctrl+R, F5, etc. van al juego y no al navegador.
+  Para salir de pantalla completa **mantené apretado Esc**; para volver, click en el juego.
+  Requisitos del navegador: Chrome o Edge, entrando por `https://` (o `localhost`). En Firefox o por `http://`
+  el navegador no lo permite: si se aprieta Ctrl+W pide confirmación antes de cerrar.
 - **M** equipo · **B** comprar · **1–9** opciones de menú · **Y** chat · **Tab** puntajes · **`** consola.
   (Los binds salen del `config.cfg` de tu instalación).
 - La primera vez cada navegador descarga ~240 MB; después quedan guardados (IndexedDB) y cargan sin descargar.
@@ -75,13 +96,13 @@ Se crea solo la primera vez. Se aplica al reiniciar el servidor.
 
 | Clave | Default | Descripción |
 |---|---|---|
-| `gamePath` | `steamapps/Half-Life` | carpeta con `valve/` y `cstrike/` originales |
+| `gamePath` | `auto` | carpeta con `valve/` y `cstrike/`; `auto` busca `steamapps/Half-Life` en el proyecto y después Steam |
 | `hostname` | `CS 1.6 LAN` | nombre del servidor |
 | `map` | `de_dust2` | mapa inicial |
 | `maxPlayers` | `16` | jugadores máximos |
 | `bots` / `botDifficulty` | `0` / `2` | bots YaPB al iniciar y su dificultad |
 | `password` | vacío | contraseña para entrar (la página la pide) |
-| `httpPort` | `27016` | puerto TCP de la página |
+| `httpPort` | `27016` | puerto TCP de la página (http y https en el mismo puerto) |
 | `webrtcPort` | `27018` | puerto UDP del tráfico de juego (WebRTC) |
 | `gamePort` | `27015` | puerto UDP interno del dedicado (sólo 127.0.0.1) |
 | `exposeGamePort` | `false` | `true` = el dedicado también acepta clientes CS nativos por la red |
@@ -102,12 +123,14 @@ y volvé a ejecutar `INICIAR-SERVIDOR.bat`: el paquete web se regenera solo si c
 - **La página no abre desde otra PC**: firewall (TCP 27016) o redes distintas. Wi-Fi de invitados / con aislamiento
   de clientes no deja que las PCs se vean entre sí.
 - **"el servidor está corriendo"** al ejecutar el setup: cerrá primero el servidor (`salir`).
+- **El navegador dice "La conexión no es privada"**: es el certificado autofirmado del servidor (se genera solo en
+  `runtime/https`). "Configuración avanzada" → "Continuar". Si la política de la empresa no deja continuar, usá `http://`.
 - **Carga lenta la primera vez**: son ~240 MB por jugador desde la PC anfitrión; por cable es mucho más rápido que por Wi-Fi.
 
 ## Limitaciones
 
-- El chat de voz del juego necesita micrófono, y los navegadores sólo lo habilitan en HTTPS o `localhost`;
-  para hablar usen Teams/Discord/etc.
+- El chat de voz del juego necesita micrófono, que los navegadores sólo habilitan en `https://` o `localhost`
+  (por `https://` el navegador pide permiso al entrar; no está probado a fondo).
 - Funciona dentro de la misma red (o una VPN tipo Tailscale/WireGuard). Por internet haría falta abrir/forwardear
   TCP 27016 y UDP 27018.
 - El anfitrión necesita Windows (el dedicado es la build win32 de Xash3D-FWGS).
@@ -124,7 +147,7 @@ server-config/           server.cfg base, custom.cfg, mapcycle.txt
 scripts/setup.mjs        prepara runtime/ y el paquete de assets
 vendor/                  binarios probados: motor wasm, cliente CS wasm, dedicado win32, ReGameDLL+YaPB
 runtime/                 generado: servidor dedicado (server/) y valve.zip para la web (web/)
-steamapps/Half-Life/     tu instalación original (sólo lectura: nunca se modifica)
+steamapps/Half-Life/     (opcional) copia de la instalación; si no está se usa la de Steam. Nunca se modifica.
 ```
 
 `npm run setup -- --force` rehace todo. `npm run setup -- --update` baja las últimas builds *continuous* del motor

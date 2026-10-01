@@ -75,12 +75,12 @@ async function ensureDownload({ file, url }) {
 }
 
 function checkGame(cfg) {
-    const valve = path.join(cfg.gamePathAbs, 'valve');
-    const cstrike = path.join(cfg.gamePathAbs, 'cstrike');
-    if (!fs.existsSync(valve) || !fs.existsSync(cstrike)) {
-        fail(`no encuentro valve/ y cstrike/ dentro de "${cfg.gamePathAbs}". Ajustá "gamePath" en config.json`);
+    if (!cfg.gamePathAbs) {
+        fail('no encontré Counter-Strike 1.6 (carpetas valve/ y cstrike/).\n'
+            + '  Instalalo desde Steam, copiá la carpeta Half-Life a steamapps/Half-Life dentro del proyecto,\n'
+            + '  o poné la ruta en "gamePath" de config.json');
     }
-    if (!fs.existsSync(path.join(cstrike, 'maps', `${cfg.map}.bsp`))) {
+    if (!fs.existsSync(path.join(cfg.gamePathAbs, 'cstrike', 'maps', `${cfg.map}.bsp`))) {
         log(`AVISO: el mapa inicial ${cfg.map} no existe en cstrike/maps`);
     }
 }
@@ -231,8 +231,8 @@ function buildClient() {
 
 async function main() {
     const cfg = loadConfig();
-    log(`Instalación original: ${cfg.gamePathAbs}`);
     checkGame(cfg);
+    log(`Instalación original (${cfg.gamePathSource}): ${cfg.gamePathAbs}`);
     fs.mkdirSync(RUNTIME, { recursive: true });
     await setupServer();
     buildAssetPack(cfg);

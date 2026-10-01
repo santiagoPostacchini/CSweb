@@ -1,2 +1,13 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# cmd.exe y PowerShell necesitan CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# binarios del motor / juego
+*.wasm binary
+*.pk3 binary
+*.7z binary
+*.zip binary

@@ -1,7 +1,6 @@
-// Servidor HTTP estático: cliente web compilado (dist/) + paquete de assets del juego.
+// Rutas HTTP: cliente web compilado (dist/), estado del servidor y paquete de assets del juego.
 import fs from 'node:fs';
 import path from 'node:path';
-import http from 'node:http';
 import { ROOT, WEB_DIR } from '../scripts/lib/config.mjs';
 
 const DIST = path.join(ROOT, 'dist');
@@ -60,9 +59,9 @@ export function readAssetsMeta() {
     }
 }
 
-export function createHttpServer(getStatus) {
+export function createRequestHandler(getStatus) {
     const assets = readAssetsMeta();
-    return http.createServer((req, res) => {
+    return (req, res) => {
         const url = new URL(req.url, 'http://localhost');
         const pathname = decodeURIComponent(url.pathname);
 
@@ -95,5 +94,5 @@ export function createHttpServer(getStatus) {
         // Los archivos de dist/assets llevan hash en el nombre: se pueden cachear para siempre.
         const immutable = rel.startsWith('assets/');
         sendFile(req, res, file, immutable ? 'public, max-age=31536000, immutable' : 'no-cache');
-    });
+    };
 }

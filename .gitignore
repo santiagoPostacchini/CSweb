@@ -1,5 +1,7 @@
-node_modules/
-dist/
-runtime/
-config.json
-steamapps/
+# Sólo en la raíz: vendor/xash3d-fwgs/dist/ SÍ se versiona (es el motor wasm)
+/node_modules/
+/dist/
+/runtime/
+/config.json
+# Assets de Valve: nunca se suben
+/steamapps/

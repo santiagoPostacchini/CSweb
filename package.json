@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "node-datachannel": "0.33.4",
+    "selfsigned": "^5.5.0",
     "ws": "8.22.0"
   },
   "devDependencies": {

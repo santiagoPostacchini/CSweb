@@ -36,18 +36,22 @@
             <input id="password" name="password" type="password" maxlength="64">
         </label>
         <label class="check">
+            <input id="fullscreen" type="checkbox" checked> Pantalla completa (bloquea <kbd>Ctrl</kbd>+<kbd>W</kbd> y otros atajos)
+        </label>
+        <label class="check">
             <input id="touch" type="checkbox"> Controles táctiles
         </label>
         <button id="play" type="submit">Jugar</button>
     </form>
 
+    <p id="lock-hint" class="note" hidden></p>
     <p id="error" class="error" hidden></p>
     <p id="download-hint" class="hint"></p>
 
     <details class="help">
         <summary>Controles</summary>
         <ul>
-            <li><kbd>Click</kbd> captura el mouse · <kbd>Esc</kbd> lo libera / menú</li>
+            <li><kbd>Click</kbd> captura el mouse · <kbd>Esc</kbd> menú · mantené <kbd>Esc</kbd> para salir de pantalla completa</li>
             <li><kbd>M</kbd> elegir equipo · <kbd>B</kbd> comprar · <kbd>1</kbd>–<kbd>9</kbd> opciones del menú</li>
             <li><kbd>W A S D</kbd> moverse · <kbd>Espacio</kbd> saltar · <kbd>Ctrl</kbd> agacharse</li>
             <li><kbd>Y</kbd> chat · <kbd>Tab</kbd> puntajes · <kbd>`</kbd> consola</li>

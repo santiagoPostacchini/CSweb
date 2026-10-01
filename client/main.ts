@@ -10,6 +10,7 @@ import serverURL from '@cs16/dlls/cs_emscripten_wasm32.wasm?url';
 import csExtrasURL from '@cs16/extras.pk3?url';
 import { Xash3DWebRTC, SERVER_ADDRESS } from './net';
 import { loadAssets } from './assets';
+import { enterFullscreen, guardShortcuts, keyboardLockSupport } from './shortcuts';
 
 type Status = {
     hostname: string;
@@ -27,6 +28,7 @@ const nameInput = $<HTMLInputElement>('name');
 const passwordRow = $('password-row');
 const passwordInput = $<HTMLInputElement>('password');
 const touchInput = $<HTMLInputElement>('touch');
+const fullscreenInput = $<HTMLInputElement>('fullscreen');
 const playButton = $<HTMLButtonElement>('play');
 const loading = $('loading');
 const loadingText = $('loading-text');
@@ -186,10 +188,40 @@ async function start(name: string, password: string, touch: boolean) {
 
     showToast('Hacé click en el juego para capturar el mouse · ESC lo libera · ` abre la consola', 7000);
     canvas.focus();
+}
 
-    window.addEventListener('beforeunload', (e) => {
-        e.preventDefault();
-    });
+const isPlaying = () => document.body.classList.contains('playing');
+guardShortcuts(isPlaying);
+
+// Pantalla completa + bloqueo de teclado (Ctrl+W deja de cerrar la pestaña)
+const lockSupport = keyboardLockSupport();
+const wantsFullscreen = () => fullscreenInput.checked;
+canvas.addEventListener('mousedown', () => {
+    // el click en el juego es un gesto del usuario: sirve para volver a pantalla completa
+    if (isPlaying() && wantsFullscreen() && !document.fullscreenElement) enterFullscreen();
+});
+document.addEventListener('fullscreenchange', () => {
+    if (!isPlaying() || !wantsFullscreen() || document.fullscreenElement) return;
+    showToast(lockSupport === 'ok'
+        ? 'Saliste de pantalla completa: Ctrl+W vuelve a cerrar la pestaña. Click en el juego para volver.'
+        : 'Saliste de pantalla completa. Click en el juego para volver.', 6000);
+});
+
+function renderLockHint() {
+    const hint = $('lock-hint');
+    if (lockSupport === 'ok') {
+        hint.hidden = true;
+        return;
+    }
+    hint.hidden = false;
+    if (lockSupport === 'insecure') {
+        const url = `https://${location.host}${location.pathname}`;
+        hint.innerHTML = `Para que <kbd>Ctrl</kbd>+<kbd>W</kbd> no cierre la pestaña entrá por <a href="${esc(url)}">${esc(url)}</a> `
+            + '(la primera vez el navegador avisa del certificado: "Configuración avanzada" → "Continuar").';
+    } else {
+        hint.innerHTML = 'Este navegador no permite bloquear <kbd>Ctrl</kbd>+<kbd>W</kbd>: si lo apretás te va a pedir confirmación '
+            + 'antes de cerrar. Con Chrome o Edge se bloquea del todo.';
+    }
 }
 
 // ---- lobby ----
@@ -197,6 +229,8 @@ const savedName = localStorage.getItem('csweb:name');
 nameInput.value = savedName || `Jugador${Math.floor(Math.random() * 900 + 100)}`;
 const savedTouch = localStorage.getItem('csweb:touch');
 touchInput.checked = savedTouch === null ? !matchMedia('(hover: hover)').matches : savedTouch === 'true';
+fullscreenInput.checked = localStorage.getItem('csweb:fullscreen') !== 'false';
+renderLockHint();
 
 if (!('RTCPeerConnection' in window) || !('WebAssembly' in window)) {
     showError('Este navegador no soporta WebRTC/WebAssembly. Usá Chrome, Edge o Firefox actualizados.');
@@ -215,6 +249,9 @@ form.addEventListener('submit', (e) => {
     const name = nameInput.value.trim() || 'Jugador';
     localStorage.setItem('csweb:name', name);
     localStorage.setItem('csweb:touch', String(touchInput.checked));
+    localStorage.setItem('csweb:fullscreen', String(fullscreenInput.checked));
+    // tiene que pedirse ya, dentro del click (gesto del usuario)
+    if (fullscreenInput.checked) enterFullscreen();
     errorBox.hidden = true;
     playButton.disabled = true;
     lobby.hidden = true;

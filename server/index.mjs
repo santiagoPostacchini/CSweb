@@ -1,13 +1,17 @@
 // Punto de entrada: levanta el servidor dedicado de CS 1.6 + la web para jugar desde el navegador.
 import fs from 'node:fs';
 import os from 'node:os';
+import net from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
 import path from 'node:path';
 import readline from 'node:readline';
 import { WebSocketServer } from 'ws';
 import { loadConfig, ROOT, WEB_DIR } from '../scripts/lib/config.mjs';
 import { GameServer } from './gameserver.mjs';
 import { RtcBridge } from './rtc.mjs';
-import { createHttpServer } from './http.mjs';
+import { createRequestHandler } from './http.mjs';
+import { ensureCertificate } from './tls.mjs';
 
 const C = {
     dim: (s) => `\x1b[2m${s}\x1b[0m`,
@@ -25,6 +29,11 @@ for (let i = 0; i < argv.length; i++) {
     if (m && argv[i + 1] !== undefined) {
         cfg[m[1]] = typeof cfg[m[1]] === 'number' ? Number(argv[++i]) : argv[++i];
     }
+}
+
+if (!cfg.gamePathAbs) {
+    console.error('No encontré Counter-Strike 1.6 (valve/ y cstrike/). Revisá "gamePath" en config.json o ejecutá: npm run setup');
+    process.exit(1);
 }
 
 for (const [p, hint] of [
@@ -79,7 +88,7 @@ game.on('map', (map) => console.log(C.green(`[servidor] mapa cargado: ${map}`)))
 bridge.on('join', (p) => console.log(C.green(`[web] jugador conectado desde ${p.remote} (${bridge.count} en línea)`)));
 bridge.on('leave', (p, why) => console.log(C.yellow(`[web] jugador desconectado ${p.remote}: ${why} (${bridge.count} en línea)`)));
 
-const httpServer = createHttpServer(() => ({
+const handler = createRequestHandler(() => ({
     hostname: cfg.hostname,
     map: game.map,
     maxPlayers: cfg.maxPlayers,
@@ -87,8 +96,27 @@ const httpServer = createHttpServer(() => ({
     needsPassword: Boolean(cfg.password),
 }));
 
+const ips = lanAddresses();
+const tlsCreds = await ensureCertificate(ips.map(i => i.address));
+const httpServer = http.createServer(handler);
+const httpsServer = https.createServer({ key: tlsCreds.key, cert: tlsCreds.cert }, handler);
+httpsServer.on('tlsClientError', () => { /* navegador que todavía no aceptó el certificado */ });
+
+// Un solo puerto para http:// y https://: el primer byte de un handshake TLS es 0x16.
+const front = net.createServer((socket) => {
+    socket.on('error', () => socket.destroy());
+    socket.setTimeout(30000, () => socket.destroy());
+    socket.once('data', (buf) => {
+        socket.setTimeout(0);
+        socket.pause();
+        socket.unshift(buf);
+        (buf[0] === 0x16 ? httpsServer : httpServer).emit('connection', socket);
+        process.nextTick(() => socket.resume());
+    });
+});
+
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
-httpServer.on('upgrade', (req, socket, head) => {
+const onUpgrade = (req, socket, head) => {
     if (new URL(req.url, 'http://localhost').pathname !== '/signal') {
         socket.destroy();
         return;
@@ -97,22 +125,26 @@ httpServer.on('upgrade', (req, socket, head) => {
         const remote = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
         bridge.handle(ws, remote);
     });
-});
+};
+httpServer.on('upgrade', onUpgrade);
+httpsServer.on('upgrade', onUpgrade);
 
-httpServer.on('error', (err) => {
-    console.error(`No se pudo abrir el puerto HTTP ${cfg.httpPort}: ${err.message}`);
+front.on('error', (err) => {
+    console.error(`No se pudo abrir el puerto ${cfg.httpPort}: ${err.message}`);
     shutdown(1);
 });
 
-httpServer.listen(cfg.httpPort, '0.0.0.0', () => {
-    const ips = lanAddresses();
+front.listen(cfg.httpPort, '0.0.0.0', () => {
     console.log('');
     console.log(C.bold('  Counter-Strike 1.6 — servidor web LAN'));
     console.log('');
     console.log(`  Compartí este link con tus compañeros (misma red):`);
     for (const ip of ips) {
-        console.log(`    ${C.cyan(`http://${ip.address}:${cfg.httpPort}`)}   ${C.dim(ip.name)}`);
+        console.log(`    ${C.cyan(`https://${ip.address}:${cfg.httpPort}`)}   ${C.dim(ip.name)}`);
     }
+    console.log(C.dim('    La primera vez el navegador avisa que el certificado no es de confianza:'));
+    console.log(C.dim('    "Configuración avanzada" → "Continuar". Con https el juego bloquea Ctrl+W en pantalla completa.'));
+    console.log(C.dim(`    Sin aviso (pero sin bloqueo de Ctrl+W): http://${ips[0]?.address ?? 'localhost'}:${cfg.httpPort}`));
     console.log(`    ${C.cyan(`http://localhost:${cfg.httpPort}`)}   ${C.dim('(esta PC)')}`);
     console.log('');
     console.log(`  Mapa: ${cfg.map}   Jugadores máx: ${cfg.maxPlayers}   Bots: ${cfg.bots}`);
@@ -147,7 +179,7 @@ function shutdown(code) {
     console.log(C.yellow('[servidor] cerrando...'));
     game.stop();
     bridge.closeAll();
-    httpServer.close();
+    front.close();
     setTimeout(() => process.exit(code), 300);
 }
 process.on('SIGINT', () => shutdown(0));

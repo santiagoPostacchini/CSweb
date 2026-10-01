@@ -210,6 +210,25 @@ button:disabled {
     margin: 14px 0 0;
 }
 
+.note {
+    color: var(--text);
+    background: #e8a33d14;
+    border: 1px solid #e8a33d44;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 14px 0 0;
+    font-size: 13px;
+}
+
+.note a {
+    color: var(--accent);
+    word-break: break-all;
+}
+
+.note[hidden] {
+    display: none;
+}
+
 .error {
     color: var(--err);
     background: #ff7a6b14;

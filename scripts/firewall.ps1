@@ -1,4 +1,4 @@
-# Crea reglas de entrada en el Firewall de Windows para la web (TCP) y el tráfico WebRTC (UDP).
+# Crea reglas de entrada en el Firewall de Windows para la web (TCP) y el trafico WebRTC (UDP).
 $root = Split-Path -Parent $PSScriptRoot
 $httpPort = 27016
 $webrtcPort = 27018
