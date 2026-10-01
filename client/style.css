@@ -319,3 +319,181 @@ kbd {
     opacity: 1;
     transform: translate(-50%, 0);
 }
+
+/* ---- página de GitHub Pages (crear / unirse) ---- */
+h2 {
+    font-size: 15px;
+    margin: 18px 0 10px;
+    color: var(--text);
+}
+
+label.field {
+    margin-bottom: 12px;
+}
+
+select {
+    font: inherit;
+    color: var(--text);
+    background: #0b0c09;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.files {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    background: #0f100d;
+}
+
+.files .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.files .row span {
+    color: var(--muted);
+}
+
+#files-status.ok {
+    color: var(--ok);
+}
+
+.files .hint code, .hint code {
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.btn-secondary {
+    display: block;
+    text-align: center;
+    color: var(--text);
+    background: #24271f;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.btn-secondary:hover {
+    border-color: var(--accent);
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    margin: 20px 0 4px;
+    font-size: 13px;
+}
+
+.divider::before, .divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+}
+
+form.inline {
+    display: flex;
+    gap: 8px;
+}
+
+form.inline input {
+    flex: 1;
+    min-width: 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+form.inline button {
+    margin-top: 0;
+    padding: 10px 16px;
+}
+
+.checks {
+    display: grid;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+#join-view button, #host-btn {
+    width: 100%;
+}
+
+#host-online {
+    margin-left: auto;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--err);
+    flex: none;
+}
+
+#host-online.on {
+    background: var(--ok);
+    box-shadow: 0 0 8px var(--ok);
+}
+
+.hint a {
+    color: var(--accent);
+}
+
+#invite {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: calc(100vw - 32px);
+    background: #000d;
+    border: 1px solid var(--accent);
+    border-radius: 99px;
+    padding: 6px 6px 6px 14px;
+    font-size: 13px;
+}
+
+#invite[hidden] {
+    display: none;
+}
+
+#invite code {
+    color: var(--accent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+#invite button {
+    margin: 0;
+    padding: 7px 12px;
+    font-size: 13px;
+    border-radius: 99px;
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .grid2 {
+        grid-template-columns: 1fr;
+    }
+    #invite code {
+        display: none;
+    }
+}

@@ -1,11 +1,7 @@
 // Transporte de red del motor: reemplaza los sockets UDP por un DataChannel WebRTC
 // no confiable (unordered, sin retransmisiones), que se comporta igual que UDP.
 import { Net, Xash3D, type Packet, type Xash3DOptions } from 'xash3d-fwgs';
-
-// Dirección ficticia del servidor dentro del motor (todo lo que va ahí sale por WebRTC)
-export const SERVER_ADDRESS = '127.0.0.1:8080';
-const SERVER_IP: [number, number, number, number] = [127, 0, 0, 1];
-const SERVER_PORT = 8080;
+import { SERVER_IP, SERVER_PORT } from './engine';
 
 type Signal =
     | { type: 'offer'; sdp: string }

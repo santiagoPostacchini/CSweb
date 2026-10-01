@@ -1,7 +1,61 @@
-# Counter-Strike 1.6 en el navegador — LAN con servidor dedicado
+# Counter-Strike 1.6 en el navegador
 
-Una PC (el anfitrión) levanta un **servidor dedicado de CS 1.6** y una página web.
-Tus compañeros abren un link en Chrome/Edge/Firefox y juegan: **no instalan nada**.
+Jugá CS 1.6 con tus compañeros desde el navegador, **sin instalar nada**. Hay dos formas:
+
+| | **En el navegador** (GitHub Pages) | **Servidor dedicado LAN** (Node + Windows) |
+|---|---|---|
+| Dónde corre el servidor | En la pestaña del anfitrión | En una PC con `INICIAR-SERVIDOR.bat` |
+| Qué instala el anfitrión | Nada (sólo tener CS 1.6 de Steam) | Node.js |
+| Si el anfitrión cierra | Se termina la partida | El servidor sigue (es dedicado) |
+| Bots | No | Sí (YaPB) |
+
+**De la instalación original sólo se usan los assets** (mapas, modelos, sonidos, texturas) y nunca se
+publican: los aporta el anfitrión desde su PC. Ningún binario de Valve se ejecuta: el motor es
+[Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs), la lógica del servidor es
+[ReGameDLL_CS](https://github.com/rehlds/ReGameDLL_CS) y el cliente es [CS16Client](https://github.com/Velaron/cs16-client),
+todos open source.
+
+## En el navegador (GitHub Pages)
+
+👉 **https://santiagopostacchini.github.io/CSweb/**
+
+**Crear partida (anfitrión)**
+1. Abrí la página y tocá **"Elegir carpeta Half-Life…"**: elegí la carpeta de tu instalación de Steam
+   (normalmente `C:Program Files (x86)SteamsteamappscommonHalf-Life`). El navegador puede preguntar si querés
+   "subir" los archivos: no se sube nada a internet, sólo se leen en tu navegador (~20 s) y quedan guardados para la próxima.
+2. Elegí mapa y cantidad de jugadores → **Crear partida**.
+3. Arriba aparece el **link para invitar** (y un código). Pasáselo a tus compañeros.
+   El servidor corre en tu pestaña: dejala abierta (y al frente) mientras juegan.
+
+**Unirse (invitados)**
+1. Abrí el link (o poné el código en la página) → **Unirse**.
+2. La primera vez se reciben ~240 MB de archivos del juego **directo desde el anfitrión** (unos 30-60 s en la misma red);
+   después quedan guardados en el navegador. Quien ya recibió los archivos también puede crear partidas.
+
+Cómo funciona por dentro:
+
+```
+ Anfitrión (pestaña)                                    Invitado (pestaña)
+┌──────────────────────────────┐   señalización   ┌──────────────────────────────┐
+│ Xash3D wasm + ReGameDLL wasm │ ◀── relays ────▶ │ Xash3D wasm (sólo cliente)   │
+│  listen server + jugador     │   Nostr (Trystero)│                              │
+│                              │                  │                              │
+│ DataChannel "cs-game" (UDP) ◀┼──── WebRTC ─────▶┼ juego                        │
+│ DataChannel "cs-files"      ─┼──── directo ────▶┼ archivos del juego (1 vez)   │
+└──────────────────────────────┘                  └──────────────────────────────┘
+```
+
+- Los relays públicos sólo se usan para que los navegadores se encuentren; el juego y los archivos van directo entre PCs.
+- En redes que bloquean conexiones directas entre equipos (algunas redes corporativas o Wi-Fi con aislamiento de clientes)
+  puede no conectar: en ese caso usá el servidor dedicado LAN.
+- `?perfil=nombre` en la URL usa otro espacio de almacenamiento (sirve para probar anfitrión e invitado en la misma PC).
+
+Para desarrollar: `npm run dev:pages` (o `npm run build:pages` → `dist-pages/`). Cada push a `main` publica la página
+con GitHub Actions (`.github/workflows/pages.yml`).
+
+## Servidor dedicado LAN
+
+Una PC levanta un **servidor dedicado de CS 1.6** y una página web; los demás abren un link.
 
 ```
  Navegador del jugador                      PC anfitrión (Windows)
@@ -17,12 +71,7 @@ Tus compañeros abren un link en Chrome/Edge/Firefox y juegan: **no instalan nad
                                             └───────────────────────────────────────────────┘
 ```
 
-**De la instalación original sólo se usan los assets** (mapas, modelos, sonidos, texturas).
-Ningún binario de Valve se ejecuta: el motor es [Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs),
-la lógica del servidor es [ReGameDLL_CS](https://github.com/rehlds/ReGameDLL_CS) y el cliente es
-[CS16Client](https://github.com/Velaron/cs16-client), todos open source.
-
-## Inicio rápido
+### Inicio rápido
 
 1. Tener **Node.js 20+** y **Counter-Strike 1.6 instalado por Steam** en la PC anfitrión
    (se detecta solo; también sirve copiar la carpeta `Half-Life` a `steamapps/Half-Life` dentro del proyecto).
@@ -62,7 +111,7 @@ npm run setup
 npm start
 ```
 
-## Jugando
+### Jugando
 
 - Click en el juego para capturar el mouse, **Esc** abre el menú.
 - **Ctrl+W no cierra la pestaña**: al apretar *Jugar* se entra en pantalla completa con el teclado bloqueado
@@ -75,7 +124,7 @@ npm start
 - La primera vez cada navegador descarga ~240 MB; después quedan guardados (IndexedDB) y cargan sin descargar.
 - Si cambiás de pestaña el juego sigue respondiendo en segundo plano, así que el servidor no te desconecta.
 
-## Consola del servidor
+### Consola del servidor
 
 En la ventana del servidor podés escribir comandos de consola de CS, por ejemplo:
 
@@ -90,7 +139,7 @@ En la ventana del servidor podés escribir comandos de consola de CS, por ejempl
 | `kick "nombre"` | expulsa a un jugador |
 | `salir` | cierra todo |
 
-## Configuración (`config.json`)
+### Configuración (`config.json`)
 
 Se crea solo la primera vez. Se aplica al reiniciar el servidor.
 
@@ -116,7 +165,7 @@ Rotación de mapas: `server-config/mapcycle.txt`.
 **Mapas custom:** copiá el `.bsp` (y sus `.wad` si tiene) dentro de `steamapps/Half-Life/cstrike/...`
 y volvé a ejecutar `INICIAR-SERVIDOR.bat`: el paquete web se regenera solo si cambió algo.
 
-## Problemas comunes
+### Problemas comunes
 
 - **"No se pudo establecer la conexión WebRTC"**: el firewall está bloqueando UDP 27018 → `ABRIR-FIREWALL.bat`.
   Si antes se canceló el aviso del firewall, Windows crea reglas que *bloquean* `node.exe`; el script te avisa si las encuentra.
@@ -127,7 +176,7 @@ y volvé a ejecutar `INICIAR-SERVIDOR.bat`: el paquete web se regenera solo si c
   `runtime/https`). "Configuración avanzada" → "Continuar". Si la política de la empresa no deja continuar, usá `http://`.
 - **Carga lenta la primera vez**: son ~240 MB por jugador desde la PC anfitrión; por cable es mucho más rápido que por Wi-Fi.
 
-## Limitaciones
+### Limitaciones
 
 - El chat de voz del juego necesita micrófono, que los navegadores sólo habilitan en `https://` o `localhost`
   (por `https://` el navegador pide permiso al entrar; no está probado a fondo).
@@ -142,7 +191,9 @@ INICIAR-SERVIDOR.bat     lanzador (instala, prepara y arranca)
 ABRIR-FIREWALL.bat       reglas de firewall (admin)
 config.json              configuración (se crea sola)
 server/                  Node: HTTP, señalización, puente WebRTC⇄UDP, control del dedicado
-client/                  página web (Vite + TypeScript): transporte WebRTC, carga/caché de assets
+client/                  página del modo LAN (Vite + TypeScript) y módulos compartidos (motor, UI)
+client/p2p/              página de GitHub Pages: crear/unirse, listen server en el navegador, paquete de archivos
+.github/workflows/       publicación automática en GitHub Pages
 server-config/           server.cfg base, custom.cfg, mapcycle.txt
 scripts/setup.mjs        prepara runtime/ y el paquete de assets
 vendor/                  binarios probados: motor wasm, cliente CS wasm, dedicado win32, ReGameDLL+YaPB
@@ -160,5 +211,5 @@ con el cliente web).
 - Port WebAssembly del motor y del cliente: paquetes `xash3d-fwgs` / `cs16-client` de webxash3d-fwgs (yohimik, MIT),
   guardados en `vendor/` porque fueron retirados de npm.
 - [CS16Client](https://github.com/Velaron/cs16-client), [ReGameDLL_CS](https://github.com/rehlds/ReGameDLL_CS), [YaPB](https://github.com/yapb/yapb).
-- [node-datachannel](https://github.com/murat-dogan/node-datachannel) (libdatachannel), [fflate](https://github.com/101arrowz/fflate).
+- [node-datachannel](https://github.com/murat-dogan/node-datachannel) (libdatachannel), [fflate](https://github.com/101arrowz/fflate), [Trystero](https://github.com/dmotz/trystero).
 - Counter-Strike y sus assets son propiedad de Valve: se usan los de tu propia instalación.

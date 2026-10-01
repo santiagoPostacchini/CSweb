@@ -5,3 +5,5 @@
 /config.json
 # Assets de Valve: nunca se suben
 /steamapps/
+/dist-pages/
+/.claude/

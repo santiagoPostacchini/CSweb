@@ -8,7 +8,10 @@
     "setup": "node scripts/setup.mjs",
     "build": "vite build",
     "start": "node server/index.mjs",
-    "dev:client": "vite"
+    "dev:client": "vite",
+    "build:pages": "vite build --config vite.pages.config.ts",
+    "dev:pages": "vite --config vite.pages.config.ts",
+    "preview:pages": "vite preview --config vite.pages.config.ts"
   },
   "dependencies": {
     "node-datachannel": "0.33.4",
@@ -19,6 +22,7 @@
     "fflate": "0.8.3",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
-    "xash3d-fwgs": "file:vendor/xash3d-fwgs"
+    "xash3d-fwgs": "file:vendor/xash3d-fwgs",
+    "trystero": "^0.25.4"
   }
 }

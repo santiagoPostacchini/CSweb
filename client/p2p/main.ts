@@ -1,0 +1,343 @@
+// Página para GitHub Pages: crear una partida (el servidor corre en la pestaña del anfitrión)
+// o unirse a una con un link/código. Los archivos del juego los aporta el anfitrión desde su
+// instalación local y se los pasa directo a cada invitado por WebRTC.
+import '../style.css';
+import '../keepalive';
+import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, playerCommands, quoteCvar } from '../engine';
+import { $, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast } from '../ui';
+import { Xash3DP2P } from './p2pnet';
+import { buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
+import { PackWriter, getMeta, getPackBlob, persistStorage, writeStream, type PackMeta } from './store';
+import { GuestRoom, HostRoom, newRoomCode, normalizeCode, type GameInfo } from './room';
+
+const canvas = $<HTMLCanvasElement>('canvas');
+const lobby = $('lobby');
+const nameInput = $<HTMLInputElement>('name');
+const touchInput = $<HTMLInputElement>('touch');
+const fullscreenInput = $<HTMLInputElement>('fullscreen');
+const errorBox = $('error');
+
+const guards = setupGameGuards(canvas, fullscreenInput);
+nameInput.value = savedName();
+touchInput.checked = defaultTouch();
+const lockHint = lockHintHtml(guards.lockSupport);
+$('lock-hint').hidden = !lockHint;
+$('lock-hint').innerHTML = lockHint;
+
+let meta: PackMeta | null = null;
+
+function showError(msg: string) {
+    $('loading').hidden = true;
+    lobby.hidden = false;
+    errorBox.hidden = false;
+    errorBox.innerHTML = esc(msg).replace(/\n/g, '<br>');
+}
+
+function clearError() {
+    errorBox.hidden = true;
+}
+
+function playerSettings() {
+    const name = nameInput.value.trim() || 'Jugador';
+    localStorage.setItem('csweb:name', name);
+    localStorage.setItem('csweb:touch', String(touchInput.checked));
+    return { name, touch: touchInput.checked };
+}
+
+function fail(err: unknown) {
+    console.error(err);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (isPlaying()) showToast(`Error: ${msg}`, 10000);
+    else showError(msg);
+}
+
+// Cuenta bytes a medida que pasan (para la barra de progreso)
+function counting(stream: ReadableStream<Uint8Array>, onBytes: (n: number) => void) {
+    let n = 0;
+    return stream.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+            n += chunk.length;
+            onBytes(n);
+            controller.enqueue(chunk);
+        },
+    }));
+}
+
+// Inicializa el motor y le carga los archivos del juego guardados
+async function loadEngine(x: Xash3DP2P, pack: PackMeta) {
+    setLoading('Cargando el motor…');
+    const [extras] = await Promise.all([fetchExtras(), x.init()]);
+    const FS = x.em!.FS;
+    const { sink, stats } = createFsSink(FS);
+    const blob = await getPackBlob(pack);
+    let last = 0;
+    await readPack(counting(blob.stream(), (n) => {
+        const now = performance.now();
+        if (now - last < 100) return;
+        last = now;
+        setLoading('Preparando archivos del juego…', `${stats.files} de ${pack.files} archivos`, n / blob.size);
+    }), sink);
+    mountExtras(FS, extras);
+}
+
+// ------------------------------------------------------------------ crear partida
+
+function renderFiles() {
+    const status = $('files-status');
+    const mapSelect = $<HTMLSelectElement>('map');
+    const hostBtn = $<HTMLButtonElement>('host-btn');
+    if (!meta) {
+        status.textContent = 'no cargados';
+        status.classList.remove('ok');
+        hostBtn.disabled = true;
+        mapSelect.innerHTML = '<option>de_dust2</option>';
+        return;
+    }
+    status.textContent = `listos · ${meta.files} archivos · ${mb(meta.size)}`;
+    status.classList.add('ok');
+    hostBtn.disabled = false;
+    const saved = localStorage.getItem('csweb:map') || 'de_dust2';
+    const maps = meta.maps.length ? meta.maps : ['de_dust2'];
+    mapSelect.innerHTML = maps.map(m => `<option${m === saved ? ' selected' : ''}>${esc(m)}</option>`).join('');
+}
+
+async function loadFolder(fileList: FileList) {
+    clearError();
+    const files: SourceFile[] = [...fileList].map(f => ({
+        relPath: (f as File & { webkitRelativePath: string }).webkitRelativePath || f.name,
+        file: f,
+        mtime: f.lastModified,
+    }));
+    const entries = selectGameFiles(files);
+    if (!entries?.length) {
+        throw new Error('En esa carpeta no encontré las carpetas valve y cstrike de Counter-Strike 1.6. '
+            + 'Elegí la carpeta Half-Life (steamapps\\common\\Half-Life).');
+    }
+    const version = await packVersion(entries);
+    if (meta?.version === version) {
+        showToast('Esos archivos ya estaban cargados');
+        return;
+    }
+    lobby.hidden = true;
+    const totalBytes = entries.reduce((s, e) => s + e.size, 0);
+    let read = { files: 0, bytes: 0 };
+    const stream = buildPack(entries, (f, _tf, b) => { read = { files: f, bytes: b }; });
+    const writer = await writeStream(version, stream, () => {
+        setLoading('Leyendo tus archivos del juego…', `${read.files} de ${entries.length} archivos`, read.bytes / totalBytes);
+    });
+    setLoading('Guardando…');
+    meta = await writer.finish({ files: entries.length, unpacked: totalBytes, maps: mapsOf(entries) });
+    await persistStorage();
+    $('loading').hidden = true;
+    lobby.hidden = false;
+    renderFiles();
+    showToast('Archivos del juego listos');
+}
+
+async function hostGame() {
+    if (!meta) return;
+    const pack = meta;
+    const { name, touch } = playerSettings();
+    const map = $<HTMLSelectElement>('map').value;
+    const maxPlayers = Number($<HTMLSelectElement>('max-players').value);
+    const hostname = $<HTMLInputElement>('hostname').value.trim() || 'CS 1.6';
+    localStorage.setItem('csweb:map', map);
+    localStorage.setItem('csweb:maxPlayers', String(maxPlayers));
+    localStorage.setItem('csweb:hostname', hostname);
+    clearError();
+    lobby.hidden = true;
+
+    const x = new Xash3DP2P(engineOptions(canvas), true);
+    (window as unknown as { xash: Xash3DP2P }).xash = x;
+    await loadEngine(x, pack);
+
+    enterGame(canvas);
+    x.main();
+    playerCommands(x, { name, touch });
+    for (const cmd of [
+        'sv_lan 1',
+        `hostname ${quoteCvar(hostname)}`,
+        `maxplayers ${maxPlayers}`,
+        'mp_timelimit 30', 'mp_roundtime 2.5', 'mp_freezetime 3', 'mp_buytime 0.75',
+        'mp_autoteambalance 1', 'mp_friendlyfire 0', 'sv_timeout 120', 'sv_allowdownload 0',
+        `map ${map}`,
+    ]) x.Cmd_ExecuteString(cmd);
+
+    const code = newRoomCode();
+    const link = `${location.origin}${location.pathname}#${code}`;
+    const info = (): GameInfo => ({
+        host: name,
+        hostname,
+        map,
+        maxPlayers,
+        players: 1 + x.remotePlayers,
+        pack: { version: pack.version, size: pack.size, files: pack.files, unpacked: pack.unpacked, maps: pack.maps },
+    });
+    const transfers = new Map<string, number>();
+    new HostRoom(code, {
+        info,
+        pack: () => getPackBlob(pack),
+        onPlayer: (id, channel) => x.addPeer(id, channel),
+        onLeave: (id) => x.removePeer(id),
+        onTransfer: (id, sent, total) => {
+            const pct = Math.floor(sent * 10 / total);
+            if (transfers.get(id) === pct) return;
+            transfers.set(id, pct);
+            if (sent >= total) showToast('Un jugador terminó de recibir los archivos y está entrando');
+        },
+    });
+
+    $('invite-link').textContent = link;
+    $('invite-copy').onclick = async () => {
+        try {
+            await navigator.clipboard.writeText(link);
+            showToast('Link copiado: pasáselo a tus compañeros');
+        } catch {
+            showToast(link, 10000);
+        }
+    };
+    const refreshInvite = () => {
+        const n = info().players;
+        $('invite-players').textContent = `${n} jugador${n === 1 ? '' : 'es'} · código ${code}`;
+        $('invite').hidden = Boolean(document.pointerLockElement);
+    };
+    document.addEventListener('pointerlockchange', refreshInvite);
+    setInterval(refreshInvite, 2000);
+    refreshInvite();
+    showToast(`Partida creada. Invitá con el link (código ${code}). Si cerrás esta pestaña se termina la partida.`, 9000);
+}
+
+function showHome() {
+    $('home-view').hidden = false;
+    const maxSelect = $<HTMLSelectElement>('max-players');
+    const savedMax = Number(localStorage.getItem('csweb:maxPlayers') || 10);
+    maxSelect.innerHTML = Array.from({ length: 15 }, (_, i) => i + 2)
+        .map(n => `<option value="${n}"${n === savedMax ? ' selected' : ''}>${n}</option>`).join('');
+    const savedHostname = localStorage.getItem('csweb:hostname');
+    if (savedHostname) $<HTMLInputElement>('hostname').value = savedHostname;
+    renderFiles();
+
+    const folder = $<HTMLInputElement>('folder');
+    folder.addEventListener('change', () => {
+        if (!folder.files?.length) return;
+        loadFolder(folder.files).catch(fail).finally(() => { folder.value = ''; });
+    });
+    $('host-btn').addEventListener('click', () => {
+        guards.requestFullscreen();
+        hostGame().catch(fail);
+    });
+    $<HTMLFormElement>('code-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const code = normalizeCode($<HTMLInputElement>('code').value);
+        if (code) location.hash = code;
+    });
+}
+
+// ------------------------------------------------------------------ unirse
+
+function showJoin(code: string) {
+    $('join-view').hidden = false;
+    $('join-code').textContent = code;
+    const guest = new GuestRoom(code);
+    const hint = $('join-hint');
+    const searching = setTimeout(() => {
+        if (!guest.info) hint.textContent = 'Todavía no aparece el anfitrión. Revisá el código y que tenga la página de la partida abierta.';
+    }, 15000);
+    guest.onInfo = (info) => {
+        clearTimeout(searching);
+        $('host-online').classList.add('on');
+        $('join-hostname').textContent = `${info.hostname} (anfitrión: ${info.host})`;
+        $('join-map').textContent = info.map;
+        $('join-players').textContent = `${info.players} / ${info.maxPlayers}`;
+        const cached = meta?.version === info.pack.version;
+        hint.textContent = cached
+            ? 'Ya tenés los archivos del juego guardados: entrás al toque.'
+            : `La primera vez se reciben ~${mb(info.pack.size)} de archivos del juego desde el anfitrión.`;
+    };
+    guest.onHostLeft = () => {
+        $('host-online').classList.remove('on');
+        if (isPlaying()) showToast('El anfitrión cerró la partida', 15000);
+        else hint.textContent = 'El anfitrión se desconectó.';
+    };
+
+    const btn = $<HTMLButtonElement>('join-btn');
+    btn.addEventListener('click', () => {
+        guards.requestFullscreen();
+        btn.disabled = true;
+        joinGame(guest).catch((e) => {
+            btn.disabled = false;
+            fail(e);
+        });
+    });
+    $('go-home').addEventListener('click', (e) => {
+        e.preventDefault();
+        history.replaceState(null, '', location.pathname);
+        location.reload();
+    });
+}
+
+async function joinGame(guest: GuestRoom) {
+    const { name, touch } = playerSettings();
+    clearError();
+    lobby.hidden = true;
+    setLoading('Buscando la partida…');
+    const info = await guest.waitHost(30000);
+
+    if (meta?.version !== info.pack.version) {
+        const writer = new PackWriter(info.pack.version);
+        const t0 = performance.now();
+        let last = 0;
+        setLoading('Recibiendo archivos del juego del anfitrión…', '', 0);
+        await guest.download(info.pack.size, async (chunk, received) => {
+            writer.push(chunk);
+            await writer.drain();
+            const now = performance.now();
+            if (now - last < 200 && received < info.pack.size) return;
+            last = now;
+            const speed = received / 1048576 / Math.max(0.001, (now - t0) / 1000);
+            setLoading('Recibiendo archivos del juego del anfitrión…',
+                `${mb(received)} de ${mb(info.pack.size)} · ${speed.toFixed(1)} MB/s`, received / info.pack.size);
+        });
+        meta = await writer.finish({ files: info.pack.files, unpacked: info.pack.unpacked, maps: info.pack.maps });
+        await persistStorage();
+    }
+
+    const x = new Xash3DP2P(engineOptions(canvas), false);
+    (window as unknown as { xash: Xash3DP2P }).xash = x;
+    setLoading('Conectando con el anfitrión…');
+    x.setHostChannel(await guest.waitGameChannel());
+    await loadEngine(x, meta);
+
+    enterGame(canvas);
+    x.main();
+    playerCommands(x, { name, touch });
+    x.Cmd_ExecuteString(`connect ${SERVER_ADDRESS}`);
+}
+
+// ------------------------------------------------------------------ inicio
+
+// Para pruebas / instalaciones sin carpeta: importar un paquete desde una URL
+(window as unknown as { csweb: object }).csweb = {
+    async importPack(url: string, info: Omit<PackMeta, 'size' | 'parts'>) {
+        const res = await fetch(url);
+        if (!res.ok || !res.body) throw new Error(`No se pudo bajar ${url}`);
+        const writer = await writeStream(info.version, res.body);
+        meta = await writer.finish({ files: info.files, unpacked: info.unpacked, maps: info.maps });
+        renderFiles();
+        return meta;
+    },
+};
+
+async function init() {
+    if (!('RTCPeerConnection' in window) || !('DecompressionStream' in window) || !('indexedDB' in window)) {
+        showError('Este navegador no soporta lo necesario (WebRTC, IndexedDB, DecompressionStream). Usá Chrome, Edge o Firefox actualizados.');
+        return;
+    }
+    meta = await getMeta();
+    window.addEventListener('hashchange', () => location.reload());
+    const code = normalizeCode(decodeURIComponent(location.hash.slice(1)));
+    if (code) showJoin(code);
+    else showHome();
+}
+
+init().catch(fail);
