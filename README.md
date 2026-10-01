@@ -45,9 +45,19 @@ Cómo funciona por dentro:
 └──────────────────────────────┘                  └──────────────────────────────┘
 ```
 
-- Los relays públicos sólo se usan para que los navegadores se encuentren; el juego y los archivos van directo entre PCs.
-- En redes que bloquean conexiones directas entre equipos (algunas redes corporativas o Wi-Fi con aislamiento de clientes)
-  puede no conectar: en ese caso usá el servidor dedicado LAN.
+- Los relays públicos sólo se usan para que los navegadores se encuentren y se pasen la señalización; después
+  el anfitrión abre una conexión WebRTC propia con cada invitado y el juego y los archivos van directo entre PCs.
+
+**Problemas de conexión**
+- Dejá marcada **"Mejorar la conexión en la red local"**: pide permiso de micrófono porque, con ese permiso, el navegador
+  usa la IP local real en vez de un nombre `.local` (mDNS) que muchas redes corporativas y hotspots no dejan resolver.
+  Conviene que lo acepten anfitrión e invitados. (El micrófono también sirve para el chat de voz del juego.)
+- **Redes distintas** (otra oficina, datos móviles, entre un hotspot y la red de la empresa): hace falta un servidor
+  **TURN**. El anfitrión lo carga en *Crear partida → Opciones de red (avanzado)*; los invitados no necesitan nada.
+  Hay planes gratuitos (por ejemplo metered.ca o Cloudflare).
+- Si algo falla aparece **"Diagnóstico de conexión"** con el detalle de cada paso (candidatos ICE, tipo de camino, etc.):
+  tocá *Copiar diagnóstico* y mandalo.
+- Si la red directamente no deja conectar equipos entre sí (Wi-Fi con aislamiento de clientes), usá el servidor dedicado LAN.
 - `?perfil=nombre` en la URL usa otro espacio de almacenamiento (sirve para probar anfitrión e invitado en la misma PC).
 
 Para desarrollar: `npm run dev:pages` (o `npm run build:pages` → `dist-pages/`). Cada push a `main` publica la página

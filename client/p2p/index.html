@@ -68,6 +68,25 @@
         <label class="field">Nombre del servidor
             <input id="hostname" maxlength="48" value="CS 1.6 en el navegador">
         </label>
+        <details class="advanced">
+            <summary>Opciones de red (avanzado)</summary>
+            <p class="hint">
+                Si tus compañeros están en <b>otra red</b> (otra oficina, datos móviles) o la red no deja conectar
+                equipos entre sí, hace falta un servidor <b>TURN</b> que retransmita el tráfico. Alcanza con que lo
+                cargue el anfitrión. Hay planes gratuitos, por ejemplo en metered.ca o Cloudflare.
+            </p>
+            <label class="field">URL(s) TURN
+                <input id="turn-url" placeholder="turn:servidor:3478, turns:servidor:443?transport=tcp" autocomplete="off">
+            </label>
+            <div class="grid2">
+                <label class="field">Usuario
+                    <input id="turn-user" autocomplete="off">
+                </label>
+                <label class="field">Contraseña
+                    <input id="turn-pass" type="password" autocomplete="off">
+                </label>
+            </div>
+        </details>
         <button id="host-btn" type="button" disabled>Crear partida</button>
 
         <div class="divider"><span>o</span></div>
@@ -84,12 +103,20 @@
             <input id="fullscreen" type="checkbox" checked> <span>Pantalla completa (bloquea <kbd>Ctrl</kbd>+<kbd>W</kbd> y otros atajos)</span>
         </label>
         <label class="check">
+            <input id="better-net" type="checkbox" checked> <span>Mejorar la conexión en la red local (pide permiso de micrófono; también sirve para el chat de voz)</span>
+        </label>
+        <label class="check">
             <input id="touch" type="checkbox"> <span>Controles táctiles</span>
         </label>
     </div>
 
     <p id="lock-hint" class="note" hidden></p>
     <p id="error" class="error" hidden></p>
+    <details id="diag" class="diag" hidden>
+        <summary>Diagnóstico de conexión</summary>
+        <pre id="diag-text"></pre>
+        <button id="diag-copy" type="button" class="btn-secondary">Copiar diagnóstico</button>
+    </details>
 
     <details class="help">
         <summary>Cómo funciona / controles</summary>

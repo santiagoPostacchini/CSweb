@@ -9,17 +9,21 @@ import { Xash3DP2P } from './p2pnet';
 import { buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
 import { PackWriter, getMeta, getPackBlob, persistStorage, writeStream, type PackMeta } from './store';
 import { GuestRoom, HostRoom, newRoomCode, normalizeCode, type GameInfo } from './room';
+import { diag, loadTurn, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
 
 const canvas = $<HTMLCanvasElement>('canvas');
 const lobby = $('lobby');
 const nameInput = $<HTMLInputElement>('name');
 const touchInput = $<HTMLInputElement>('touch');
 const fullscreenInput = $<HTMLInputElement>('fullscreen');
+const betterNetInput = $<HTMLInputElement>('better-net');
 const errorBox = $('error');
 
 const guards = setupGameGuards(canvas, fullscreenInput);
 nameInput.value = savedName();
 touchInput.checked = defaultTouch();
+betterNetInput.checked = localStorage.getItem('csweb:betterNet') !== 'false';
+betterNetInput.addEventListener('change', () => localStorage.setItem('csweb:betterNet', String(betterNetInput.checked)));
 const lockHint = lockHintHtml(guards.lockSupport);
 $('lock-hint').hidden = !lockHint;
 $('lock-hint').innerHTML = lockHint;
@@ -31,11 +35,23 @@ function showError(msg: string) {
     lobby.hidden = false;
     errorBox.hidden = false;
     errorBox.innerHTML = esc(msg).replace(/\n/g, '<br>');
+    $('diag').hidden = false;
+    $('diag-text').textContent = diag.text();
 }
 
 function clearError() {
     errorBox.hidden = true;
+    $('diag').hidden = true;
 }
+
+$('diag-copy').addEventListener('click', async () => {
+    try {
+        await navigator.clipboard.writeText(diag.text());
+        showToast('Diagnóstico copiado');
+    } catch {
+        showToast('No se pudo copiar: seleccioná el texto a mano');
+    }
+});
 
 function playerSettings() {
     const name = nameInput.value.trim() || 'Jugador';
@@ -47,8 +63,14 @@ function playerSettings() {
 function fail(err: unknown) {
     console.error(err);
     const msg = err instanceof Error ? err.message : String(err);
+    diag.log(`error: ${msg}`);
     if (isPlaying()) showToast(`Error: ${msg}`, 10000);
     else showError(msg);
+}
+
+// Pedir el micrófono hace que el navegador use IPs locales reales (ver netdiag.ts)
+async function prepareNetwork() {
+    if (betterNetInput.checked) await unlockLocalAddresses();
 }
 
 // Cuenta bytes a medida que pasan (para la barra de progreso)
@@ -134,6 +156,12 @@ async function loadFolder(fileList: FileList) {
     showToast('Archivos del juego listos');
 }
 
+function readTurnInputs(): TurnSettings | null {
+    const url = $<HTMLInputElement>('turn-url').value.trim();
+    if (!url) return null;
+    return { url, username: $<HTMLInputElement>('turn-user').value.trim(), credential: $<HTMLInputElement>('turn-pass').value };
+}
+
 async function hostGame() {
     if (!meta) return;
     const pack = meta;
@@ -141,11 +169,16 @@ async function hostGame() {
     const map = $<HTMLSelectElement>('map').value;
     const maxPlayers = Number($<HTMLSelectElement>('max-players').value);
     const hostname = $<HTMLInputElement>('hostname').value.trim() || 'CS 1.6';
+    const turn = readTurnInputs();
     localStorage.setItem('csweb:map', map);
     localStorage.setItem('csweb:maxPlayers', String(maxPlayers));
     localStorage.setItem('csweb:hostname', hostname);
+    saveTurn(turn);
     clearError();
     lobby.hidden = true;
+    setLoading('Preparando la conexión…');
+    // el micrófono queda abierto mientras dura la partida: cada invitado nuevo usa una conexión nueva
+    await prepareNetwork();
 
     const x = new Xash3DP2P(engineOptions(canvas), true);
     (window as unknown as { xash: Xash3DP2P }).xash = x;
@@ -174,6 +207,7 @@ async function hostGame() {
         pack: { version: pack.version, size: pack.size, files: pack.files, unpacked: pack.unpacked, maps: pack.maps },
     });
     const transfers = new Map<string, number>();
+    diag.log(`partida creada, código ${code}${turn ? ' (con TURN)' : ''}`);
     new HostRoom(code, {
         info,
         pack: () => getPackBlob(pack),
@@ -185,7 +219,7 @@ async function hostGame() {
             transfers.set(id, pct);
             if (sent >= total) showToast('Un jugador terminó de recibir los archivos y está entrando');
         },
-    });
+    }, turn);
 
     $('invite-link').textContent = link;
     $('invite-copy').onclick = async () => {
@@ -215,6 +249,13 @@ function showHome() {
         .map(n => `<option value="${n}"${n === savedMax ? ' selected' : ''}>${n}</option>`).join('');
     const savedHostname = localStorage.getItem('csweb:hostname');
     if (savedHostname) $<HTMLInputElement>('hostname').value = savedHostname;
+    const turn = loadTurn();
+    if (turn) {
+        $<HTMLInputElement>('turn-url').value = turn.url;
+        $<HTMLInputElement>('turn-user').value = turn.username;
+        $<HTMLInputElement>('turn-pass').value = turn.credential;
+        ($('turn-url').closest('details') as HTMLDetailsElement).open = true;
+    }
     renderFiles();
 
     const folder = $<HTMLInputElement>('folder');
@@ -238,10 +279,12 @@ function showHome() {
 function showJoin(code: string) {
     $('join-view').hidden = false;
     $('join-code').textContent = code;
-    const guest = new GuestRoom(code);
+    const guest = new GuestRoom(code, loadTurn());
     const hint = $('join-hint');
     const searching = setTimeout(() => {
-        if (!guest.info) hint.textContent = 'Todavía no aparece el anfitrión. Revisá el código y que tenga la página de la partida abierta.';
+        if (!guest.info) {
+            hint.textContent = 'Todavía no aparece el anfitrión. Tocá "Unirse" igual: se vuelve a intentar con la conexión mejorada.';
+        }
     }, 15000);
     guest.onInfo = (info) => {
         clearTimeout(searching);
@@ -256,7 +299,7 @@ function showJoin(code: string) {
     };
     guest.onHostLeft = () => {
         $('host-online').classList.remove('on');
-        if (isPlaying()) showToast('El anfitrión cerró la partida', 15000);
+        if (isPlaying()) showToast('Se perdió la conexión con el anfitrión', 15000);
         else hint.textContent = 'El anfitrión se desconectó.';
     };
 
@@ -280,8 +323,15 @@ async function joinGame(guest: GuestRoom) {
     const { name, touch } = playerSettings();
     clearError();
     lobby.hidden = true;
+    setLoading('Preparando la conexión…');
+    await prepareNetwork();
+    // si todavía no apareció el anfitrión, se vuelve a buscar ahora que (quizás) hay IPs reales
+    await guest.rejoin();
     setLoading('Buscando la partida…');
     const info = await guest.waitHost(30000);
+    setLoading('Conectando con el anfitrión…');
+    const how = await guest.connect(30000);
+    showToast(`Conectado con el anfitrión (${how})`, 5000);
 
     if (meta?.version !== info.pack.version) {
         const writer = new PackWriter(info.pack.version);
@@ -298,15 +348,16 @@ async function joinGame(guest: GuestRoom) {
             setLoading('Recibiendo archivos del juego del anfitrión…',
                 `${mb(received)} de ${mb(info.pack.size)} · ${speed.toFixed(1)} MB/s`, received / info.pack.size);
         });
+        diag.log(`archivos recibidos en ${((performance.now() - t0) / 1000).toFixed(0)} s`);
         meta = await writer.finish({ files: info.pack.files, unpacked: info.pack.unpacked, maps: info.pack.maps });
         await persistStorage();
     }
 
     const x = new Xash3DP2P(engineOptions(canvas), false);
     (window as unknown as { xash: Xash3DP2P }).xash = x;
-    setLoading('Conectando con el anfitrión…');
-    x.setHostChannel(await guest.waitGameChannel());
+    x.setHostChannel(guest.game!);
     await loadEngine(x, meta);
+    releaseMic();
 
     enterGame(canvas);
     x.main();
@@ -326,6 +377,7 @@ async function joinGame(guest: GuestRoom) {
         renderFiles();
         return meta;
     },
+    diag: () => diag.text(),
 };
 
 async function init() {
