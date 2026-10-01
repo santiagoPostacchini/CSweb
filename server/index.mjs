@@ -65,7 +65,7 @@ const bridge = new RtcBridge(cfg);
 const HIDDEN = [
     /^Rcon from /, /^rcon /, /^\s*$/, /^Adding directory/, /^FS_AddGameHierarchy/, /^FS_LoadProgs/,
     /SV_CvarGetPointer/, /Unknown command "yb_quota_(adding|maintain)_interval"/, /^Program args:/,
-    /^Developer level/, /is working directory now$/, /^EXT: /,
+    /^Developer level/, /is working directory now$/, /^EXT: /, /Cmd_AddServerCommand: game already defined/,
 ];
 let hideNext = false;
 game.on('log', (line) => {
