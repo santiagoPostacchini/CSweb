@@ -75,6 +75,21 @@ export function mountExtras(fs: FS, [valveExtras, csExtras]: [ArrayBuffer, Array
     fs.chdir('/rodir');
 }
 
+// Arranca el motor y espera a que termine de inicializarse.
+// Las librerías del juego (servidor, cliente, menú, render) se descargan en segundo plano; si
+// todavía no llegaron, emscripten posterga el arranque y cualquier comando enviado antes
+// rompe el motor ("_Mem_Alloc: pool == NULL").
+export async function startEngine(x: Xash3D, onWait?: () => void, timeoutMs = 120000) {
+    x.main();
+    const mod = x.em!.Module as { calledRun?: boolean };
+    const t0 = performance.now();
+    while (!mod.calledRun) {
+        if (performance.now() - t0 > timeoutMs) throw new Error('El motor no terminó de arrancar (¿se cortó la descarga de sus archivos?)');
+        onWait?.();
+        await new Promise(r => setTimeout(r, 50));
+    }
+}
+
 export function quoteCvar(s: string) {
     return `"${s.replace(/["\\;\n\r]/g, '')}"`;
 }

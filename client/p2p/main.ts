@@ -3,7 +3,7 @@
 // instalación local y se los pasa directo a cada invitado por WebRTC.
 import '../style.css';
 import '../keepalive';
-import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, playerCommands, quoteCvar } from '../engine';
+import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, playerCommands, quoteCvar, startEngine } from '../engine';
 import { $, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast } from '../ui';
 import { Xash3DP2P } from './p2pnet';
 import { buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
@@ -184,8 +184,9 @@ async function hostGame() {
     (window as unknown as { xash: Xash3DP2P }).xash = x;
     await loadEngine(x, pack);
 
+    setLoading('Iniciando el motor…');
+    await startEngine(x);
     enterGame(canvas);
-    x.main();
     playerCommands(x, { name, touch });
     for (const cmd of [
         'sv_lan 1',
@@ -359,8 +360,9 @@ async function joinGame(guest: GuestRoom) {
     await loadEngine(x, meta);
     releaseMic();
 
+    setLoading('Iniciando el motor…');
+    await startEngine(x);
     enterGame(canvas);
-    x.main();
     playerCommands(x, { name, touch });
     x.Cmd_ExecuteString(`connect ${SERVER_ADDRESS}`);
 }

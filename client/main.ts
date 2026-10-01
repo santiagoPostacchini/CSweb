@@ -3,7 +3,7 @@ import './style.css';
 import './keepalive';
 import { Xash3DWebRTC } from './net';
 import { loadAssets } from './assets';
-import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, playerCommands } from './engine';
+import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, playerCommands, startEngine } from './engine';
 import {
     $, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast,
 } from './ui';
@@ -91,8 +91,9 @@ async function start(name: string, password: string, touch: boolean) {
     console.log(`Assets: ${stats.files} archivos, ${mb(stats.bytes)} en ${((performance.now() - t0) / 1000).toFixed(1)} s`);
 
     mountExtras(FS, extras);
+    setLoading('Iniciando el motor…');
+    await startEngine(x);
     enterGame(canvas);
-    x.main();
     playerCommands(x, { name, touch, password });
     x.Cmd_ExecuteString(`connect ${SERVER_ADDRESS}`);
 }
