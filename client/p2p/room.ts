@@ -5,8 +5,8 @@
 //   Trystero maneja por dentro) con dos canales:
 //     "game":  no confiable y desordenado, se comporta como UDP → tráfico del juego
 //     "files": confiable → paquete de archivos del juego
-import { joinRoom, type MessageAction, type Room } from 'trystero';
-import { candidateType, describePath, diag, rtcConfig, selectedPath, turnServers, type TurnSettings } from './netdiag';
+import { joinRoom, selfId, type MessageAction, type Room } from 'trystero';
+import { candidateType, describePath, diag, measureRtt, rtcConfig, selectedPath, turnServers, type TurnSettings } from './netdiag';
 
 const APP_ID = 'csweb-cs16-santiagopostacchini-v1';
 // 64 KB por mensaje: con mensajes más grandes Chrome llega a trabar el canal
@@ -15,6 +15,13 @@ const READ_SLICE = 4 * 1024 * 1024;
 const BUFFER_HIGH = 8 << 20;
 const BUFFER_LOW = 1 << 20;
 
+// Jugador conectado al anfitrión, en orden de llegada. Si el anfitrión cae, todos eligen al
+// sucesor a partir de la última copia de esta lista (ver migration.ts).
+export type RosterEntry = { peerId: string; name: string; seq: number; canHost: boolean };
+
+// Lo que cada invitado le cuenta al anfitrión sobre sí mismo
+export type Caps = { name: string; canHost: boolean };
+
 export type GameInfo = {
     host: string;
     hostname: string;
@@ -22,7 +29,12 @@ export type GameInfo = {
     maxPlayers: number;
     players: number;
     pack: { version: string; size: number; files: number; unpacked: number; maps: string[] };
+    // número de "reinicio" de la partida: cada migración de anfitrión lo incrementa
+    epoch: number;
+    roster: RosterEntry[];
 };
+
+export { selfId };
 
 type CandidateJson = { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };
 type Sig =
@@ -128,7 +140,8 @@ class Link {
             await Promise.race([new Promise<void>(r => this.channelWaiters.push(r)), sleep(250)]);
         }
         const path = await selectedPath(this.pc);
-        diag.log(`conectado (${path})`);
+        const rtt = await measureRtt(this.pc);
+        diag.log(`conectado (${path}${rtt != null ? `, RTT ${rtt} ms` : ''})`);
         return describePath(path);
     }
 
@@ -164,26 +177,51 @@ async function sendBlob(ch: RTCDataChannel, blob: Blob, onProgress: (sent: numbe
 // ---------------------------------------------------------------- anfitrión
 
 export type HostCallbacks = {
-    info: () => GameInfo;
+    // datos de la partida; el epoch y la lista de jugadores los agrega HostRoom
+    info: () => Omit<GameInfo, 'epoch' | 'roster'>;
     pack: () => Promise<Blob>;
     onPlayer: (peerId: string, game: RTCDataChannel) => void;
     onLeave: (peerId: string) => void;
     onTransfer?: (peerId: string, sent: number, total: number) => void;
+    // otro anfitrión con más prioridad apareció en la misma sala: este tiene que dejar su lugar
+    onSuperseded: (epoch: number) => void;
 };
+
+// Prioridad entre dos anfitriones: gana el epoch más alto; con el mismo epoch, el peerId menor
+export function outranks(a: { epoch: number; peerId: string }, b: { epoch: number; peerId: string }) {
+    return a.epoch !== b.epoch ? a.epoch > b.epoch : a.peerId < b.peerId;
+}
 
 export class HostRoom {
     private room: Room;
     private links = new Map<string, Link>();
+    private seqs = new Map<string, number>();
+    private caps = new Map<string, Caps>();
+    private nextSeq = 1;
+    private infoAction: MessageAction<GameInfo>;
     private timer: number;
 
-    constructor(readonly code: string, private cb: HostCallbacks, private turn: TurnSettings | null) {
+    constructor(readonly code: string, private cb: HostCallbacks, private turn: TurnSettings | null, readonly epoch = 1) {
         this.room = joinTrystero(code, turn);
-        const info = this.room.makeAction<GameInfo>('info');
+        const info = this.infoAction = this.room.makeAction<GameInfo>('info');
         const sig = this.room.makeAction<Sig>('sig');
+        const capsAction = this.room.makeAction<Caps>('caps');
 
         this.room.onPeerJoin = (peerId) => {
             diag.log(`se encontró un jugador (${peerId.slice(0, 6)})`);
-            info.send(cb.info(), { target: peerId });
+            info.send(this.fullInfo(), { target: peerId });
+        };
+        capsAction.onMessage = (c, { peerId }) => {
+            this.caps.set(peerId, { name: String(c.name ?? '').slice(0, 31), canHost: Boolean(c.canHost) });
+            this.announce();
+        };
+        // Otro anfitrión en la misma sala (por ejemplo, el grupo migró mientras este seguía vivo)
+        info.onMessage = (data, { peerId }) => {
+            const other = { epoch: data.epoch ?? 0, peerId };
+            if (outranks(other, { epoch: this.epoch, peerId: selfId })) {
+                diag.log(`otro anfitrión tiene prioridad (epoch ${other.epoch}, ${peerId.slice(0, 6)})`);
+                cb.onSuperseded(other.epoch);
+            }
         };
         this.room.onPeerLeave = (peerId) => {
             // si la conexión del juego sigue viva, el jugador sigue jugando
@@ -208,13 +246,31 @@ export class HostRoom {
             }
         };
         // la cantidad de jugadores cambia: se avisa a todos de vez en cuando
-        this.timer = window.setInterval(() => info.send(cb.info()), 5000);
+        this.timer = window.setInterval(() => this.announce(), 5000);
+    }
+
+    private roster(): RosterEntry[] {
+        return [...this.seqs.entries()]
+            .filter(([id]) => this.links.has(id))
+            .map(([peerId, seq]) => ({ peerId, seq, name: this.caps.get(peerId)?.name ?? '', canHost: this.caps.get(peerId)?.canHost ?? false }))
+            .sort((a, b) => a.seq - b.seq);
+    }
+
+    private fullInfo(): GameInfo {
+        return { ...this.cb.info(), epoch: this.epoch, roster: this.roster() };
+    }
+
+    // Avisa a todos el estado de la partida (se llama también cuando entra o sale alguien)
+    announce() {
+        this.infoAction.send(this.fullInfo()).catch(() => undefined); // la sala puede estar cerrándose
     }
 
     private watch(peerId: string, link: Link) {
         link.ready(30000).then((how) => {
             diag.log(`jugador ${peerId.slice(0, 6)} conectado ${how}`);
+            if (!this.seqs.has(peerId)) this.seqs.set(peerId, this.nextSeq++);
             this.cb.onPlayer(peerId, link.game!);
+            this.announce();
             link.files!.onmessage = async (ev) => {
                 if (ev.data !== 'get') return;
                 try {
@@ -232,7 +288,10 @@ export class HostRoom {
     private drop(peerId: string) {
         this.links.get(peerId)?.close();
         this.links.delete(peerId);
+        this.seqs.delete(peerId);
+        this.caps.delete(peerId);
         this.cb.onLeave(peerId);
+        this.announce();
     }
 
     leave() {
@@ -249,21 +308,41 @@ export class GuestRoom {
     private sig!: MessageAction<Sig>;
     private hostId: string | null = null;
     private link: Link | null = null;
+    private capsAction!: MessageAction<Caps>;
+    private established = false;
+    private lostFired = false;
+    private leaving = false;
+    private disconnectTimer = 0;
     info: GameInfo | null = null;
     onInfo?: (info: GameInfo) => void;
+    // se perdió al anfitrión antes de haber entrado a jugar (búsqueda o conexión inicial)
     onHostLeft?: () => void;
+    // se perdió al anfitrión estando conectado: hay que migrar la partida
+    onHostLost?: () => void;
 
-    constructor(readonly code: string, private turn: TurnSettings | null) {
+    // minEpoch / exclude: tras una migración sólo se aceptan anfitriones nuevos (epoch al menos
+    // el del anterior y que no sean el anfitrión que se perdió)
+    constructor(
+        readonly code: string,
+        private turn: TurnSettings | null,
+        private accept: { minEpoch?: number; exclude?: string[] } = {},
+    ) {
         this.join();
+    }
+
+    get hostPeerId() {
+        return this.hostId;
     }
 
     private join() {
         this.room = joinTrystero(this.code, this.turn);
         const info = this.room.makeAction<GameInfo>('info');
         this.sig = this.room.makeAction<Sig>('sig');
+        this.capsAction = this.room.makeAction<Caps>('caps');
         info.onMessage = (data, { peerId }) => {
             if (this.hostId && peerId !== this.hostId) return;
-            if (!this.hostId) diag.log(`anfitrión encontrado (${peerId.slice(0, 6)})`);
+            if (this.accept.exclude?.includes(peerId) || (data.epoch ?? 0) < (this.accept.minEpoch ?? 0)) return;
+            if (!this.hostId) diag.log(`anfitrión encontrado (${peerId.slice(0, 6)}, epoch ${data.epoch ?? 0})`);
             this.hostId = peerId;
             this.info = data;
             this.onInfo?.(data);
@@ -275,8 +354,33 @@ export class GuestRoom {
         this.room.onPeerLeave = (peerId) => {
             if (peerId !== this.hostId) return;
             if (this.link?.pc.connectionState === 'connected') return;
-            this.onHostLeft?.();
+            this.lost(this.link);
         };
+    }
+
+    // Cuenta al anfitrión qué puede hacer este jugador (lo usa para armar la lista de sucesores)
+    sendCaps(caps: Caps) {
+        if (this.hostId) this.capsAction.send(caps, { target: this.hostId }).catch(() => undefined);
+    }
+
+    private lost(link: Link | null) {
+        if (this.leaving || this.lostFired || link !== this.link) return;
+        this.lostFired = true;
+        diag.log(this.established ? 'se perdió la conexión con el anfitrión' : 'el anfitrión no está disponible');
+        if (this.established) this.onHostLost?.();
+        else this.onHostLeft?.();
+    }
+
+    // Vigila que la conexión del juego siga viva
+    private watchLink(link: Link) {
+        link.pc.addEventListener('connectionstatechange', () => {
+            clearTimeout(this.disconnectTimer);
+            const state = link.pc.connectionState;
+            if (state === 'failed' || state === 'closed') this.lost(link);
+            // "disconnected" suele ser un corte breve: se espera unos segundos antes de darlo por perdido
+            else if (state === 'disconnected') this.disconnectTimer = window.setTimeout(() => this.lost(link), 5000);
+        });
+        link.game?.addEventListener('close', () => this.lost(link));
     }
 
     // Vuelve a entrar a la sala (por ejemplo después de conseguir el permiso de micrófono)
@@ -315,10 +419,11 @@ export class GuestRoom {
         this.link = new Link(sid, this.turn, (s) => this.sig.send(s, { target: host }), false);
         diag.log('pidiendo conexión al anfitrión');
         await this.sig.send({ sid, type: 'hello' }, { target: host });
-        const how = await this.link.ready(timeoutMs);
-        this.link.pc.addEventListener('connectionstatechange', () => {
-            if (this.link?.pc.connectionState === 'failed') this.onHostLeft?.();
-        });
+        const link = this.link;
+        const how = await link.ready(timeoutMs);
+        this.established = true;
+        this.lostFired = false;
+        this.watchLink(link);
         return how;
     }
 
@@ -364,7 +469,9 @@ export class GuestRoom {
     }
 
     leave() {
+        this.leaving = true;
+        clearTimeout(this.disconnectTimer);
         this.link?.close();
-        this.room.leave();
+        return this.room.leave();
     }
 }

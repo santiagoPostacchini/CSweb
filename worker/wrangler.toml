@@ -1,0 +1,10 @@
+name = "asriel"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Orígenes que pueden pedir credenciales (el de tu GitHub Pages, sin barra final)
+ALLOWED_ORIGINS = "https://santiagopostacchini.github.io"
+TURN_TTL = "86400"
+
+# Secretos (no van acá): npx wrangler secret put TURN_KEY_ID  y  npx wrangler secret put TURN_API_TOKEN

@@ -1,0 +1,13 @@
+{
+  "name": "csweb-turn-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Worker de Cloudflare que entrega credenciales TURN efímeras a CSweb",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

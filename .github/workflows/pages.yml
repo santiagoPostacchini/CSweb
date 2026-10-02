@@ -26,6 +26,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build:pages
+        env:
+          # URL del Worker de TURN (variable de repositorio, ver worker/README.md); vacía = sin relay automático
+          VITE_TURN_ENDPOINT: ${{ vars.TURN_ENDPOINT }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

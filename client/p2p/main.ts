@@ -4,12 +4,13 @@
 import '../style.css';
 import '../keepalive';
 import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, playerCommands, quoteCvar, startEngine } from '../engine';
-import { $, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast } from '../ui';
+import { $, allowUnload, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast } from '../ui';
 import { Xash3DP2P } from './p2pnet';
 import { buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
 import { PackWriter, getMeta, getPackBlob, persistStorage, writeStream, type PackMeta } from './store';
-import { GuestRoom, HostRoom, newRoomCode, normalizeCode, type GameInfo } from './room';
-import { diag, loadTurn, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
+import { GuestRoom, HostRoom, newRoomCode, normalizeCode, selfId, type GameInfo } from './room';
+import { giveUpAfter, planMigration, saveMigration, takeMigration, takeoverDelay, type Migration } from './migration';
+import { checkNetwork, diag, hasAutoRelay, loadTurn, prepareIce, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
 
 const canvas = $<HTMLCanvasElement>('canvas');
 const lobby = $('lobby');
@@ -29,6 +30,18 @@ $('lock-hint').hidden = !lockHint;
 $('lock-hint').innerHTML = lockHint;
 
 let meta: PackMeta | null = null;
+// Credenciales de relay (TURN): se piden apenas abre la página y se esperan antes de crear/unir una sala
+const iceReady = prepareIce();
+
+// Línea informativa con el tipo de red y si hay relay disponible
+function showNetCheck() {
+    const el = $('net-check');
+    Promise.all([checkNetwork(), iceReady]).then(([net]) => {
+        const relay = hasAutoRelay() ? 'relay automático disponible' : 'sin relay automático';
+        el.textContent = `Tu red: ${net.summary} · ${relay}`;
+        el.hidden = false;
+    }).catch(() => undefined);
+}
 
 function showError(msg: string) {
     $('loading').hidden = true;
@@ -162,9 +175,20 @@ function readTurnInputs(): TurnSettings | null {
     return { url, username: $<HTMLInputElement>('turn-user').value.trim(), credential: $<HTMLInputElement>('turn-pass').value };
 }
 
+type HostOptions = {
+    pack: PackMeta;
+    name: string;
+    touch: boolean;
+    map: string;
+    maxPlayers: number;
+    hostname: string;
+    turn: TurnSettings | null;
+    code: string;
+    epoch: number;
+};
+
 async function hostGame() {
     if (!meta) return;
-    const pack = meta;
     const { name, touch } = playerSettings();
     const map = $<HTMLSelectElement>('map').value;
     const maxPlayers = Number($<HTMLSelectElement>('max-players').value);
@@ -174,11 +198,18 @@ async function hostGame() {
     localStorage.setItem('csweb:maxPlayers', String(maxPlayers));
     localStorage.setItem('csweb:hostname', hostname);
     saveTurn(turn);
+    await runHost({ pack: meta, name, touch, map, maxPlayers, hostname, turn, code: newRoomCode(), epoch: 1 });
+}
+
+// Levanta el servidor en esta pestaña y abre la sala. También lo usa la migración de anfitrión
+// (misma sala, epoch más alto).
+async function runHost({ pack, name, touch, map, maxPlayers, hostname, turn, code, epoch }: HostOptions) {
     clearError();
     lobby.hidden = true;
     setLoading('Preparando la conexión…');
     // el micrófono queda abierto mientras dura la partida: cada invitado nuevo usa una conexión nueva
     await prepareNetwork();
+    await iceReady;
 
     const x = new Xash3DP2P(engineOptions(canvas), true);
     (window as unknown as { xash: Xash3DP2P }).xash = x;
@@ -197,9 +228,8 @@ async function hostGame() {
         `map ${map}`,
     ]) x.Cmd_ExecuteString(cmd);
 
-    const code = newRoomCode();
     const link = `${location.origin}${location.pathname}#${code}`;
-    const info = (): GameInfo => ({
+    const info = (): Omit<GameInfo, 'epoch' | 'roster'> => ({
         host: name,
         hostname,
         map,
@@ -208,7 +238,7 @@ async function hostGame() {
         pack: { version: pack.version, size: pack.size, files: pack.files, unpacked: pack.unpacked, maps: pack.maps },
     });
     const transfers = new Map<string, number>();
-    diag.log(`partida creada, código ${code}${turn ? ' (con TURN)' : ''}`);
+    diag.log(`partida creada, código ${code}, epoch ${epoch}${turn ? ' (con TURN)' : ''}`);
     new HostRoom(code, {
         info,
         pack: () => getPackBlob(pack),
@@ -220,7 +250,12 @@ async function hostGame() {
             transfers.set(id, pct);
             if (sent >= total) showToast('Un jugador terminó de recibir los archivos y está entrando');
         },
-    }, turn);
+        // otro jugador ya tomó la partida (el grupo migró mientras este anfitrión seguía vivo)
+        onSuperseded: (winnerEpoch) => {
+            showToast('Otro jugador tomó la partida: te reconectás a él…', 8000);
+            rejoinAsGuest(code, winnerEpoch);
+        },
+    }, turn, epoch);
 
     $('invite-link').textContent = link;
     $('invite-copy').onclick = async () => {
@@ -239,7 +274,9 @@ async function hostGame() {
     document.addEventListener('pointerlockchange', refreshInvite);
     setInterval(refreshInvite, 2000);
     refreshInvite();
-    showToast(`Partida creada. Invitá con el link (código ${code}). Si cerrás esta pestaña se termina la partida.`, 9000);
+    showToast(epoch > 1
+        ? 'Tomaste la partida: el anfitrión anterior se desconectó. Los demás se reconectan solos.'
+        : `Partida creada. Invitá con el link (código ${code}). Si cerrás esta pestaña, otro jugador toma la partida (se reinicia la ronda).`, 9000);
 }
 
 function showHome() {
@@ -277,10 +314,12 @@ function showHome() {
 
 // ------------------------------------------------------------------ unirse
 
-function showJoin(code: string) {
+function showJoin(code: string, migration: Migration | null = null) {
     $('join-view').hidden = false;
     $('join-code').textContent = code;
-    const guest = new GuestRoom(code, loadTurn());
+    const guest = new GuestRoom(code, loadTurn(), migration
+        ? { minEpoch: migration.lostEpoch, exclude: migration.excludePeer ? [migration.excludePeer] : [] }
+        : {});
     const hint = $('join-hint');
     const searching = setTimeout(() => {
         if (!guest.info) {
@@ -300,27 +339,94 @@ function showJoin(code: string) {
     };
     guest.onHostLeft = () => {
         $('host-online').classList.remove('on');
-        if (isPlaying()) showToast('Se perdió la conexión con el anfitrión', 15000);
-        else hint.textContent = 'El anfitrión se desconectó.';
+        hint.textContent = 'El anfitrión se desconectó.';
     };
 
     const btn = $<HTMLButtonElement>('join-btn');
-    btn.addEventListener('click', () => {
-        guards.requestFullscreen();
+    const join = (waitMs?: number) => {
         btn.disabled = true;
-        joinGame(guest).catch((e) => {
+        return joinGame(guest, waitMs).catch((e) => {
             btn.disabled = false;
             fail(e);
         });
+    };
+    btn.addEventListener('click', () => {
+        guards.requestFullscreen();
+        join();
     });
     $('go-home').addEventListener('click', (e) => {
         e.preventDefault();
         history.replaceState(null, '', location.pathname);
         location.reload();
     });
+    if (migration) resumeMigration(guest, migration, join).catch(fail);
 }
 
-async function joinGame(guest: GuestRoom) {
+// ------------------------------------------------------------------ migración de anfitrión
+
+// Recarga la página dentro de la misma sala; el estado de la migración viaja en sessionStorage
+function reloadInto(code: string) {
+    history.replaceState(null, '', `${location.pathname}${location.search}#${code}`);
+    allowUnload();
+    setTimeout(() => location.reload(), 600);
+}
+
+let migrating = false;
+
+// Se perdió al anfitrión en plena partida: se elige al sucesor y todos recargan la página
+function beginMigration(guest: GuestRoom) {
+    if (migrating || !guest.info) return;
+    const plan = planMigration(guest.code, guest.info, guest.hostPeerId, selfId);
+    if (!plan.candidates) {
+        diag.log('migración imposible: ningún jugador puede tomar la partida');
+        showToast('El anfitrión se desconectó y ningún otro jugador puede tomar la partida', 20000);
+        return;
+    }
+    migrating = true;
+    diag.log(`migrando la partida (epoch ${plan.lostEpoch}, lugar ${plan.slot} de ${plan.candidates})`);
+    setLoading('El anfitrión se desconectó', 'Migrando la partida a otro jugador…');
+    saveMigration(plan);
+    reloadInto(plan.code);
+}
+
+// Otro anfitrión con más prioridad apareció mientras este seguía vivo: pasa a ser un jugador más
+function rejoinAsGuest(code: string, winnerEpoch: number) {
+    if (migrating) return;
+    migrating = true;
+    saveMigration({
+        code,
+        lostEpoch: winnerEpoch,
+        excludePeer: null,
+        slot: -1,
+        candidates: 0,
+        settings: { map: '', maxPlayers: 0, hostname: '' },
+        at: Date.now(),
+    });
+    setLoading('Reconectando', 'Otro jugador tomó la partida…');
+    reloadInto(code);
+}
+
+// Página recién recargada por una migración: el sucesor levanta el servidor si nadie lo hizo
+// antes de su turno; los demás se unen solos al anfitrión nuevo.
+async function resumeMigration(guest: GuestRoom, m: Migration, join: (waitMs?: number) => Promise<void>) {
+    lobby.hidden = true;
+    setLoading('Recuperando la partida…', 'Esperando al nuevo anfitrión');
+    const delay = takeoverDelay(m.slot);
+    if (delay !== null && meta) {
+        try {
+            await guest.waitHost(delay);
+        } catch {
+            diag.log(`nadie tomó la partida: este jugador pasa a ser el anfitrión (epoch ${m.lostEpoch + 1})`);
+            await guest.leave();
+            const { name, touch } = playerSettings();
+            await runHost({ pack: meta, name, touch, ...m.settings, turn: loadTurn(), code: m.code, epoch: m.lostEpoch + 1 });
+            return;
+        }
+    }
+    await join(giveUpAfter(m.candidates));
+}
+
+async function joinGame(guest: GuestRoom, waitMs = 30000) {
     const { name, touch } = playerSettings();
     clearError();
     lobby.hidden = true;
@@ -329,12 +435,18 @@ async function joinGame(guest: GuestRoom) {
     // si todavía no apareció el anfitrión, se vuelve a buscar ahora que (quizás) hay IPs reales
     await guest.rejoin();
     setLoading('Buscando la partida…');
-    const info = await guest.waitHost(30000);
+    guest.onHostLost = () => {
+        if (isPlaying()) beginMigration(guest);
+    };
+    const info = await guest.waitHost(waitMs);
     setLoading('Conectando con el anfitrión…');
     const how = await guest.connect(30000);
     showToast(`Conectado con el anfitrión (${how})`, 5000);
 
     if (meta?.version !== info.pack.version) {
+        if (how.includes('TURN')) {
+            showToast(`Conexión por relay: la primera descarga (~${mb(info.pack.size)}) usa el cupo compartido y puede tardar más`, 9000);
+        }
         const writer = new PackWriter(info.pack.version);
         const t0 = performance.now();
         let last = 0;
@@ -353,6 +465,10 @@ async function joinGame(guest: GuestRoom) {
         meta = await writer.finish({ files: info.pack.files, unpacked: info.pack.unpacked, maps: info.pack.maps });
         await persistStorage();
     }
+
+    // con los archivos guardados este jugador puede tomar la partida si el anfitrión se cae
+    // (no desde celulares ni con controles táctiles)
+    guest.sendCaps({ name, canHost: !touch && !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) });
 
     const x = new Xash3DP2P(engineOptions(canvas), false);
     (window as unknown as { xash: Xash3DP2P }).xash = x;
@@ -389,9 +505,12 @@ async function init() {
     }
     meta = await getMeta();
     window.addEventListener('hashchange', () => location.reload());
+    showNetCheck();
     const code = normalizeCode(decodeURIComponent(location.hash.slice(1)));
-    if (code) showJoin(code);
-    else showHome();
+    if (code) {
+        await iceReady; // la sala de Trystero necesita los servidores ICE desde el primer momento
+        showJoin(code, takeMigration(code));
+    } else showHome();
 }
 
 init().catch(fail);
