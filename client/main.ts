@@ -5,7 +5,7 @@ import { Xash3DWebRTC } from './net';
 import { loadAssets } from './assets';
 import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, onEngineQuit, playerCommands, queueCommands, startEngine } from './engine';
 import {
-    $, allowUnload, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast,
+    $, allowUnload, bindFastRender, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast,
 } from './ui';
 
 type Status = {
@@ -108,6 +108,7 @@ onEngineQuit(() => {
 const guards = setupGameGuards(canvas, fullscreenInput);
 nameInput.value = savedName();
 touchInput.checked = defaultTouch();
+bindFastRender($<HTMLInputElement>('fast-render'));
 const hint = lockHintHtml(guards.lockSupport);
 $('lock-hint').hidden = !hint;
 $('lock-hint').innerHTML = hint;

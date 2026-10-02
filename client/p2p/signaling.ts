@@ -9,7 +9,7 @@
 // (por ejemplo, si la conexión vieja todavía no se dio por cerrada cuando llega la nueva).
 import { joinRoom as joinNostr, selfId, type DataPayload, type JoinRoomCallbacks, type MessageAction, type Room, type TurnServerConfig } from '@trystero-p2p/nostr';
 import { joinRoom as joinTorrent } from '@trystero-p2p/torrent';
-import { diag } from './netdiag';
+import { diag, forceRelay } from './netdiag';
 
 export { selfId };
 
@@ -34,7 +34,9 @@ const STUCK_MS = 20_000;
 
 class LoggedPeerConnection extends RTCPeerConnection {
     constructor(config?: RTCConfiguration) {
-        super(config);
+        // con ?relay=1 también estas conexiones van por TURN (así se prueba en una sola PC lo que
+        // pasa entre dos redes que no se ven)
+        super(forceRelay ? { ...config, iceTransportPolicy: 'relay' } : config);
         let watching = false;
         this.addEventListener('signalingstatechange', () => {
             if (watching || !this.remoteDescription) return;

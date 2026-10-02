@@ -178,6 +178,7 @@ export function mountExtras(fs: FS, [valveExtras, csExtras]: [ArrayBuffer, Array
 // rompe el motor ("_Mem_Alloc: pool == NULL").
 export async function startEngine(x: Xash3D, onWait?: () => void, timeoutMs = 120000) {
     restoreUserConfig(x.em!.FS);
+    writeRenderConfig(x.em!.FS);
     x.main();
     const mod = x.em!.Module as { calledRun?: boolean };
     const t0 = performance.now();
@@ -188,6 +189,36 @@ export async function startEngine(x: Xash3D, onWait?: () => void, timeoutMs = 12
     }
     engineAlive = true;
     keepUserConfig(x);
+    skipRenderWhileHidden(x);
+}
+
+// ---- rendimiento ----
+// El renderer lee cstrike/opengl.cfg antes de iniciar el video. Dos valores por defecto le cuestan
+// caro al navegador:
+// - gl_check_errors 1: después de cada textura que sube llama a glGetError, que en WebGL obliga a
+//   esperar a la GPU (unos 5 s del arranque y buena parte de cada frame).
+// - gl_vbo 0: dibuja el mundo polígono por polígono. Con VBO, el frame cuesta unas 3 veces menos CPU;
+//   se puede apagar desde "Más opciones" por si en algún equipo dibuja mal.
+const RENDER_CONFIG = '/rodir/cstrike/opengl.cfg';
+const FAST_RENDER_KEY = 'csweb:fastRender';
+export const fastRenderEnabled = () => localStorage.getItem(FAST_RENDER_KEY) !== 'false';
+export const setFastRender = (on: boolean) => localStorage.setItem(FAST_RENDER_KEY, String(on));
+
+function writeRenderConfig(fs: FS) {
+    let cfg = '';
+    try {
+        cfg = new TextDecoder().decode(fs.readFile(RENDER_CONFIG));
+    } catch { /* el paquete no trae uno */ }
+    fs.mkdirTree('/rodir/cstrike', 0o777);
+    fs.writeFile(RENDER_CONFIG, `${cfg}\ngl_check_errors "0"\ngl_vbo "${fastRenderEnabled() ? 1 : 0}"\n`);
+}
+
+// Con la pestaña oculta nadie ve el juego: se deja de dibujar el mundo y el motor usa la CPU para
+// simular, que es lo que importa si sos el anfitrión (keepalive.ts lo sigue moviendo).
+function skipRenderWhileHidden(x: Xash3D) {
+    const apply = () => queueCommands(x, [`r_norefresh ${document.visibilityState === 'hidden' ? 1 : 0}`]);
+    document.addEventListener('visibilitychange', apply);
+    if (document.visibilityState === 'hidden') apply();
 }
 
 // ---- configuración del jugador ----

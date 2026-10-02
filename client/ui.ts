@@ -1,4 +1,5 @@
 // Helpers de interfaz compartidos por la página LAN y la de GitHub Pages.
+import { fastRenderEnabled, setFastRender } from './engine';
 import { enterFullscreen, guardShortcuts, isChromium, keyboardLockSupport } from './shortcuts';
 
 export const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -108,6 +109,12 @@ export function lockHintHtml(lockSupport: ReturnType<typeof keyboardLockSupport>
     }
     return 'Este navegador no permite bloquear <kbd>Ctrl</kbd>+<kbd>W</kbd>: si lo apretás te va a pedir confirmación '
         + 'antes de cerrar. Con Chrome, Edge o Firefox 151+ en pantalla completa se bloquea del todo.';
+}
+
+// "Dibujado rápido del mapa" (ver engine.ts): se aplica al arrancar el motor
+export function bindFastRender(input: HTMLInputElement) {
+    input.checked = fastRenderEnabled();
+    input.addEventListener('change', () => setFastRender(input.checked));
 }
 
 export function savedName() {

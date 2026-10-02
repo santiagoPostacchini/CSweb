@@ -132,6 +132,43 @@ export async function checkNetwork(timeoutMs = 4000): Promise<NetCheck> {
     return result;
 }
 
+// Prueba cada servidor TURN por separado (sólo relay): dice por qué transportes se llega al relay
+// desde esta red. Si ninguno responde, sólo queda la conexión directa.
+export async function checkRelay(turn: TurnSettings | null, timeoutMs = 4000) {
+    const probes = turnServers(turn).flatMap(s => (Array.isArray(s.urls) ? s.urls : [s.urls])
+        .map(url => ({ url, username: s.username, credential: s.credential })));
+    if (!probes.length) return;
+    const label = (url: string) => {
+        const m = url.match(/^(turns?):[^:?]+(?::(\d+))?(?:\?transport=(\w+))?/i);
+        if (!m) return url;
+        return `${m[1].toLowerCase() === 'turns' ? 'tls' : (m[3] ?? 'udp').toLowerCase()} ${m[2] ?? (m[1] === 'turns' ? 5349 : 3478)}`;
+    };
+    const results = await Promise.all(probes.map(async ({ url, username, credential }) => {
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: url, username, credential }], iceTransportPolicy: 'relay' });
+        let ok = false;
+        let error = '';
+        try {
+            pc.onicecandidateerror = (e) => { error ||= String((e as RTCPeerConnectionIceErrorEvent).errorCode); };
+            const found = new Promise<void>((resolve) => {
+                pc.onicecandidate = (e) => {
+                    if (/ typ relay\b/.test(e.candidate?.candidate ?? '')) ok = true;
+                    if (ok || !e.candidate) resolve();
+                };
+            });
+            pc.createDataChannel('probe');
+            await pc.setLocalDescription(await pc.createOffer());
+            await Promise.race([found, new Promise<void>(r => setTimeout(r, timeoutMs))]);
+        } catch (e) {
+            error ||= (e as Error).message;
+        } finally {
+            pc.close();
+        }
+        return `${label(url)} ${ok ? 'ok' : `no${error ? ` (${error})` : ''}`}`;
+    }));
+    const reachable = results.filter(r => r.endsWith(' ok')).length;
+    diag.log(`relay ${reachable ? 'alcanzable' : 'NO alcanzable desde esta red'}: ${results.join(', ')}`);
+}
+
 // Latencia (ms) del camino elegido, o null si todavía no se puede medir
 export async function measureRtt(pc: RTCPeerConnection): Promise<number | null> {
     try {

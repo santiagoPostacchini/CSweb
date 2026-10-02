@@ -4,7 +4,7 @@
 import '../style.css';
 import { lastFrameAt } from '../keepalive';
 import { SERVER_ADDRESS, createFsSink, engineLogTail, engineOptions, fetchExtras, mountExtras, onEngineAbort, onEngineQuit, playerCommands, queueCommands, quoteCvar, startEngine } from '../engine';
-import { $, allowUnload, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast } from '../ui';
+import { $, allowUnload, bindFastRender, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast } from '../ui';
 import { Xash3DP2P } from './p2pnet';
 import { PackRejected, buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
 import { PackWriter, findPack, forgetPack, getMeta, getPackBlob, persistStorage, usePack, writeStream, type PackMeta } from './store';
@@ -13,7 +13,7 @@ import { Swarm, SwarmUnavailable } from './swarm';
 import { giveUpAfter, planMigration, saveMigration, successors, takeMigration, takeoverDelay, type Migration } from './migration';
 import { careForHost } from './hostcare';
 import { SUGGEST_MARGIN_MS } from './quality';
-import { checkNetwork, diag, hasAutoRelay, hasLocalAddresses, loadTurn, prepareIce, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
+import { checkNetwork, checkRelay, diag, forceRelay, hasAutoRelay, hasLocalAddresses, loadTurn, prepareIce, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
 
 const canvas = $<HTMLCanvasElement>('canvas');
 const lobby = $('lobby');
@@ -26,6 +26,7 @@ const errorBox = $('error');
 const guards = setupGameGuards(canvas, fullscreenInput);
 nameInput.value = savedName();
 touchInput.checked = defaultTouch();
+bindFastRender($<HTMLInputElement>('fast-render'));
 betterNetInput.checked = localStorage.getItem('csweb:betterNet') !== 'false';
 betterNetInput.addEventListener('change', () => localStorage.setItem('csweb:betterNet', String(betterNetInput.checked)));
 const lockHint = lockHintHtml(guards.lockSupport);
@@ -40,6 +41,7 @@ const iceReady = prepareIce();
 function logNetCheck() {
     Promise.all([checkNetwork(), iceReady])
         .then(() => diag.log(hasAutoRelay() ? 'relay automático disponible' : 'sin relay automático'))
+        .then(() => checkRelay(loadTurn()))
         .catch(() => undefined);
 }
 
@@ -294,7 +296,8 @@ async function runHost({ pack, name, touch, map, maxPlayers, hostname, turn, cod
         `map ${map}`,
     ]);
 
-    const link = `${location.origin}${location.pathname}#${code}`;
+    // con ?relay=1 (prueba del relay) los invitados también lo usan
+    const link = `${location.origin}${location.pathname}${forceRelay ? '?relay=1' : ''}#${code}`;
     const info = (): Omit<GameInfo, 'epoch' | 'roster'> => ({
         host: name,
         hostname,
