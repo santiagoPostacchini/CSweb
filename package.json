@@ -19,10 +19,12 @@
     "ws": "8.22.0"
   },
   "devDependencies": {
+    "@trystero-p2p/nostr": "0.25.4",
+    "@trystero-p2p/torrent": "0.25.4",
     "fflate": "0.8.3",
+    "trystero": "^0.25.4",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
-    "xash3d-fwgs": "file:vendor/xash3d-fwgs",
-    "trystero": "^0.25.4"
+    "xash3d-fwgs": "file:vendor/xash3d-fwgs"
   }
 }

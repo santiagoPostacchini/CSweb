@@ -5,7 +5,8 @@
 //   Trystero maneja por dentro) con dos canales:
 //     "game":  no confiable y desordenado, se comporta como UDP → tráfico del juego
 //     "files": confiable → paquete de archivos del juego
-import { joinRoom, selfId, type MessageAction, type Room } from 'trystero';
+import type { MessageAction } from '@trystero-p2p/nostr';
+import { joinSignalingRoom, selfId, type RoomLike } from './signaling';
 import { candidateType, describePath, diag, measureRtt, rtcConfig, selectedPath, turnServers, type TurnSettings } from './netdiag';
 
 const APP_ID = 'csweb-cs16-santiagopostacchini-v1';
@@ -55,7 +56,7 @@ export function normalizeCode(code: string) {
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 function joinTrystero(code: string, turn: TurnSettings | null) {
-    return joinRoom({ appId: APP_ID, turnConfig: turnServers(turn) as never }, code, {
+    return joinSignalingRoom({ appId: APP_ID, turnConfig: turnServers(turn) as never }, code, {
         onJoinError: (d) => diag.log(`trystero: ${d.error} (peer ${d.peerId})`),
     });
 }
@@ -71,8 +72,23 @@ class Link {
     private remoteTypes = new Set<string>();
     private channelWaiters: (() => void)[] = [];
 
+    private restartTimer = 0;
+    private restarts = 0;
+
     constructor(readonly sid: string, turn: TurnSettings | null, private send: (s: Sig) => void, offerer: boolean) {
         this.pc = new RTCPeerConnection(rtcConfig(turn));
+        // Cortes breves de red (cambio de Wi-Fi, suspensión): el anfitrión (quien ofrece) reinicia ICE
+        // para buscar un camino nuevo sin tumbar la conexión ni expulsar al jugador
+        if (offerer) {
+            this.pc.addEventListener('connectionstatechange', () => {
+                clearTimeout(this.restartTimer);
+                const state = this.pc.connectionState;
+                if (state === 'connected') this.restarts = 0;
+                else if (state === 'disconnected' || state === 'failed') {
+                    this.restartTimer = window.setTimeout(() => this.restartIce(), state === 'failed' ? 0 : 3000);
+                }
+            });
+        }
         this.pc.onicecandidate = (e) => {
             if (!e.candidate?.candidate) return;
             this.localTypes.add(candidateType(e.candidate.candidate));
@@ -106,6 +122,18 @@ class Link {
     async offer() {
         await this.pc.setLocalDescription(await this.pc.createOffer());
         this.send({ sid: this.sid, type: 'offer', sdp: this.pc.localDescription!.sdp });
+    }
+
+    private async restartIce() {
+        if (this.pc.connectionState === 'closed' || !this.pc.remoteDescription || this.restarts >= 5) return;
+        this.restarts++;
+        diag.log(`reiniciando ICE (intento ${this.restarts})`);
+        try {
+            this.pc.restartIce();
+            await this.offer();
+        } catch (e) {
+            diag.log(`no se pudo reiniciar ICE: ${(e as Error).message}`);
+        }
     }
 
     async handle(sig: Sig) {
@@ -193,7 +221,7 @@ export function outranks(a: { epoch: number; peerId: string }, b: { epoch: numbe
 }
 
 export class HostRoom {
-    private room: Room;
+    private room: RoomLike;
     private links = new Map<string, Link>();
     private seqs = new Map<string, number>();
     private caps = new Map<string, Caps>();
@@ -280,8 +308,18 @@ export class HostRoom {
                 }
             };
         }).catch((e) => diag.log(`jugador ${peerId.slice(0, 6)}: ${(e as Error).message}`));
+        let failTimer = 0;
         link.pc.addEventListener('connectionstatechange', () => {
-            if (['failed', 'closed'].includes(link.pc.connectionState) && this.links.get(peerId) === link) this.drop(peerId);
+            clearTimeout(failTimer);
+            if (this.links.get(peerId) !== link) return;
+            const state = link.pc.connectionState;
+            if (state === 'closed') this.drop(peerId);
+            // "failed": se da tiempo a que el reinicio de ICE recupere la conexión antes de expulsar al jugador
+            else if (state === 'failed') {
+                failTimer = window.setTimeout(() => {
+                    if (this.links.get(peerId) === link && link.pc.connectionState === 'failed') this.drop(peerId);
+                }, 12000);
+            }
         });
     }
 
@@ -304,7 +342,7 @@ export class HostRoom {
 // ---------------------------------------------------------------- invitado
 
 export class GuestRoom {
-    private room!: Room;
+    private room!: RoomLike;
     private sig!: MessageAction<Sig>;
     private hostId: string | null = null;
     private link: Link | null = null;
@@ -376,9 +414,12 @@ export class GuestRoom {
         link.pc.addEventListener('connectionstatechange', () => {
             clearTimeout(this.disconnectTimer);
             const state = link.pc.connectionState;
-            if (state === 'failed' || state === 'closed') this.lost(link);
-            // "disconnected" suele ser un corte breve: se espera unos segundos antes de darlo por perdido
-            else if (state === 'disconnected') this.disconnectTimer = window.setTimeout(() => this.lost(link), 5000);
+            if (state === 'closed') this.lost(link);
+            // "disconnected" / "failed" suelen ser un corte breve: el anfitrión reinicia ICE y se le da
+            // tiempo antes de darlo por perdido
+            else if (state === 'disconnected' || state === 'failed') {
+                this.disconnectTimer = window.setTimeout(() => this.lost(link), 9000);
+            }
         });
         link.game?.addEventListener('close', () => this.lost(link));
     }
