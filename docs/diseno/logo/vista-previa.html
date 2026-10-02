@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pop Dog · vista previa del logo</title>
+<style>
+    :root { --win: #4c5844; --desk: #3e4637; --text: #d8ded3; --acc: #c4b550; color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--desk); color: var(--text); font: 14px/1.45 "Trebuchet MS", Verdana, Tahoma, sans-serif; }
+    main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 40px; }
+    h1 { margin: 0 0 4px; font-size: 22px; color: var(--acc); }
+    h2 { margin: 24px 0 8px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: #fff; }
+    p { margin: 0 0 8px; color: #cbd2c0; max-width: 80ch; }
+    .fondos { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+    .fondos > div { padding: 16px; display: grid; place-items: center; border: 1px solid #292d23; }
+    .fondos img { width: 100%; max-width: 460px; height: auto; display: block; }
+    .tamanos { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 22px; padding: 16px; background: var(--win); border: 1px solid #292d23; }
+    figure { margin: 0; text-align: center; }
+    figcaption { margin-top: 6px; font-size: 11px; color: #cbd2c0; }
+    .pestana { display: inline-flex; align-items: center; gap: 8px; background: #202124; color: #e8eaed; font: 12px system-ui, sans-serif; padding: 8px 14px; border-radius: 8px 8px 0 0; }
+    .pestana img { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<main>
+    <h1>Pop Dog</h1>
+    <p>Redibujo vectorial limpio del cartel de Pop Dog (la gaseosa ficticia del mapa <code>de_train</code>). Tres archivos: el logo completo, la marca (perro y burbujas) y un ícono cuadrado. El grosor del contorno es parejo, las burbujas son círculos exactos y las manchas son elipses.</p>
+
+    <h2>Logo completo sobre distintos fondos</h2>
+    <div class="fondos">
+        <div style="background: var(--win)"><img src="popdog-logo.svg" alt="Pop Dog sobre verde oliva"></div>
+        <div style="background: #15171b"><img src="popdog-logo.svg" alt="Pop Dog sobre fondo oscuro"></div>
+        <div style="background: #fff"><img src="popdog-logo.svg" alt="Pop Dog sobre fondo blanco"></div>
+    </div>
+
+    <h2>Marca (cabecera) y ícono, en los tamaños que se usan</h2>
+    <div class="tamanos">
+        <figure><img src="popdog-marca.svg" height="140" alt=""><figcaption>marca · 140 px</figcaption></figure>
+        <figure><img src="popdog-marca.svg" height="52" alt=""><figcaption>marca · 52 px (cabecera)</figcaption></figure>
+        <figure><img src="popdog-icono.svg" height="128" alt=""><figcaption>ícono · 128</figcaption></figure>
+        <figure><img src="popdog-icono.svg" height="64" alt=""><figcaption>64</figcaption></figure>
+        <figure><img src="popdog-icono.svg" height="32" alt=""><figcaption>32</figcaption></figure>
+        <figure><img src="popdog-icono.svg" height="24" alt=""><figcaption>24</figcaption></figure>
+        <figure><img src="popdog-icono.svg" height="16" alt=""><figcaption>16 (barra de título)</figcaption></figure>
+    </div>
+
+    <h2>En la pestaña del navegador</h2>
+    <span class="pestana"><img src="popdog-icono.svg" alt="">Counter-Strike 1.6 — en el navegador</span>
+</main>
+</body>
+</html>

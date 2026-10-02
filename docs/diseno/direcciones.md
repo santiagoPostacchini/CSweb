@@ -4,7 +4,7 @@ Etapas 2 y 3 de [`docs/agente-diseno-ui.md`](../agente-diseno-ui.md). Se apoya e
 
 > **Decisión (2/10/2026): se eligió la A (Steam 2003 / VGUI), en su versión v2.** Está aplicada en `client/style.css` y en los dos
 > `index.html`. La B y la C quedan en este documento y en sus maquetas (`maqueta-flyer-lan.html`, `maqueta-terminal.html`) como
-> registro de lo que se probó; ya no hay código de esas pieles. Pendiente: el logo definitivo (ver "Logo").
+> registro de lo que se probó; ya no hay código de esas pieles. El logo es el de Pop Dog (ver "Logo").
 
 **Qué hay para mirar.** Cada dirección tiene una maqueta HTML autocontenida (se abre con doble clic, no pide
 internet) y capturas a 1440 px y a 390 px de ancho:
@@ -189,16 +189,54 @@ La decisión fue la A (ver arriba).
 
 ---
 
-## Logo
+## Logo: Pop Dog
 
-El logo anterior (un círculo con cuatro marcas) era genérico. Hay **cuatro propuestas propias** en
-[`logos.html`](logos.html) ([captura](capturas/logos.png)), dibujadas con rectángulos sobre una grilla de 64 px: una
-ventana VGUI con la mira verde de CS 1.6 (**1**), una etiqueta de clan `[CS]` con el 1.6 en píxeles (**2**), un bloque con
-display de siete segmentos que marca 1.6 (**3**) y un monitor de tubo con la mira (**4**). Ninguna usa el logo, el arte ni la
-tipografía de Valve; la mira verde de cuatro barras es la mira por defecto del juego, no una marca.
+El logo original (un círculo con cuatro marcas) era genérico. Se probaron primero cuatro ideas propias, dibujadas desde cero
+([`logos.html`](logos.html), [captura](capturas/logos.png)): una ventana VGUI con la mira verde, una etiqueta `[CS]`, un bloque
+con display 1.6 y un monitor de tubo. **Se eligió otra cosa: el cartel de Pop Dog**, la gaseosa ficticia que aparece en el
+mapa `de_train` ("The Dog That Refreshes!"), que es un símbolo de la comunidad de CS 1.6.
 
-Por ahora está puesta la **1**, para verla en contexto; cambiar de logo es reemplazar el `<svg>` del `<header>` en los dos
-`index.html`, el favicon (enlace `rel="icon"`) y `client/p2p/public/icon.svg`.
+![Vista previa del logo](capturas/popdog.png)
+
+**Qué se entrega** (todo en [`logo/`](logo/), con una [vista previa](logo/vista-previa.html)):
+
+| Archivo | Para qué |
+|---|---|
+| [`popdog-logo.svg`](logo/popdog-logo.svg) | Logo completo: perro, burbujas, el nombre "Pop Dog" y el lema (el lema es texto en vivo, en un grupo `#lema` que se puede borrar). |
+| [`popdog-marca.svg`](logo/popdog-marca.svg) | El perro con sus tres burbujas. Es el de la cabecera. |
+| [`popdog-icono.svg`](logo/popdog-icono.svg) | Sólo el perro, en un cuadrado. Para tamaños chicos (barra de título, pestaña). |
+
+Los mismos archivos están en `client/` (`popdog-marca.svg` y `popdog-icono.svg`, que el CSS usa como fondo del logo y de la barra de
+título) y `client/p2p/public/icon.svg` es el ícono de la app instalada y de la pestaña, con fondo verde.
+
+**Cómo se hizo.** La referencia que pasaste (512 px de ancho) es chica, así que no se calcó a ojo: se midió. Con un lector de PNG propio
+se extrajeron los contornos de las zonas blancas con precisión de sub-píxel (marching squares), se les ajustaron curvas Bézier cúbicas
+(algoritmo de Schneider) y se compararon contra la referencia ampliada hasta 20 veces, superponiendo el vector. Lo que se limpió:
+
+- **Contorno parejo.** En la referencia el borde negro varía de 4 a 8 px; acá mide 5 px en todo el dibujo (así se mantiene legible al achicarlo).
+- **Burbujas.** Seis círculos exactos, de dos tamaños (radios 12,6 y 8,2), en lugar de seis manchas parecidas.
+- **Manchas.** El parche del ojo, la nariz y la mancha del cuerpo son elipses; el óvalo de la mejilla y el lunar también.
+- **Trazos.** El contorno del perro es una curva suave con 20 esquinas marcadas (puntas de dedos y orejas), en vez de un borde de píxeles escalonados.
+- **Sin `paint-order`.** Los SVG no dependen de esa propiedad (los editores viejos la ignoran): primero van todas las formas con borde negro y
+  encima los rellenos.
+
+**Qué se simplificó o cambió respecto de la referencia:** el lema, que en la imagen original se lee mal, se reescribió como texto en una
+serifa cursiva; la banda negra sobre el parche del ojo se redibujó continua; y la ranura negra de la pata delantera se rellenó entera
+(en la referencia queda un hilo de fondo adentro).
+
+**Tamaños.** A 52 px (cabecera) y 32 px se reconoce bien. A 24 px se reconoce como un perro blanco con manchas, y a 16 px (el ícono de la
+barra de título) queda como una silueta blanca con manchas negras: se entiende, pero ya no se ven los detalles.
+
+### Derechos de autor: léase antes de publicar
+
+El cartel de Pop Dog es **arte que viene con el juego** (el mapa `de_train` es oficial de Valve), así que casi seguro pertenece a Valve. Esto contradice la sección 4 del encargo
+([`docs/agente-diseno-ui.md`](../agente-diseno-ui.md)), que prohíbe usar arte de Valve. Se hizo igual **porque el dueño del repositorio
+lo pidió de forma explícita**, así que queda registrado como una **excepción decidida por él**. Pero hay que tener en cuenta que:
+
+- Un redibujo es una obra derivada: cambia los trazos, no la autoría del diseño.
+- La página se publica en GitHub Pages, que es público. Si Valve o un tercero lo objetara, habría que cambiar el logo; por eso el
+  logo está separado en archivos (`client/popdog-marca.svg`, `client/popdog-icono.svg`, `client/p2p/public/icon.svg`) y es fácil de reemplazar.
+- La imagen de referencia (captura del juego) **no se guardó en el repositorio**.
 
 ## Implementación (etapa 3)
 
@@ -208,8 +246,8 @@ fuente Anton se borraron (siguen en el historial de git, en el commit `4c662b8`)
 | Archivo | Qué hay |
 |---|---|
 | `client/style.css` | Una sola hoja: los tokens en `:root`, la estructura (tamaños, posiciones, estados) y el aspecto de la A. 12 KB, 3,3 KB comprimido. Ninguna fuente, ninguna imagen: los íconos de la barra de título y de la casilla son SVG en línea dentro del CSS. |
-| `client/index.html`, `client/p2p/index.html` | El logo nuevo en el `<header>` y en el favicon, y `theme-color` `#3e4637`. En el inicio de `client/p2p/index.html`, dos `<fieldset class="group">` con su `<legend>`. Los `id`, las clases y los `hidden` que usa TypeScript no se tocaron. |
-| `client/p2p/public/icon.svg`, `manifest.webmanifest` | El ícono de la app instalada es el logo nuevo; `theme_color` y `background_color` pasan a `#3e4637`. |
+| `client/index.html`, `client/p2p/index.html` | El `<header>` ya no lleva un `<svg>` en línea: el logo es un fondo CSS (`client/popdog-marca.svg`). Favicon desde archivo y `theme-color` `#3e4637`. En el inicio de `client/p2p/index.html`, dos `<fieldset class="group">` con su `<legend>`. Los `id`, las clases y los `hidden` que usa TypeScript no se tocaron. |
+| `client/popdog-marca.svg`, `client/popdog-icono.svg`, `client/p2p/public/icon.svg`, `manifest.webmanifest` | El logo de Pop Dog. `icon.svg` es el ícono de la app instalada y de la pestaña (con fondo verde); `theme_color` y `background_color` pasan a `#3e4637`. |
 | TypeScript | **Ningún cambio.** `main.ts` sigue importando `style.css`. |
 
 Se hicieron además dos arreglos de estructura que no dependen del estilo: el cartel de invitación y el toast usan
@@ -240,7 +278,6 @@ Se hicieron además dos arreglos de estructura que no dependen del estilo: el ca
 
 ## Pendientes
 
-- **Logo.** Está puesta la propuesta 1 (ventana con mira), pero el logo no es definitivo.
 - **Botones de ventana de la barra de título.** Son decorativos (no hacen nada). Si molestan, se quitan con una línea del CSS
   (el segundo `url(...)` del `background` de `.panel::before`).
 - **Peso del botón principal.** Con el estilo VGUI (aro negro y texto amarillo) tiene menos presencia que un botón relleno. Si en las
