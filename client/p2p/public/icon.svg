@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-    <rect width="512" height="512" rx="96" fill="#0e0f0c"/>
-    <g fill="none" stroke="#e8a33d" stroke-width="36" stroke-linecap="round">
-        <circle cx="256" cy="256" r="150"/>
-        <path d="M256 60v112M256 340v112M60 256h112M340 256h112"/>
-    </g>
-</svg>
+<svg width="512" height="512" viewBox="0 0 64 64" shape-rendering="crispEdges" role="img" aria-label="Ventana con mira" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" fill="#3e4637"/><rect x="2" y="6" width="60" height="52" fill="#4c5844"/><rect x="2" y="6" width="60" height="2" fill="#a9b19c"/><rect x="2" y="6" width="2" height="52" fill="#a9b19c"/><rect x="60" y="8" width="2" height="50" fill="#1a1d16"/><rect x="4" y="56" width="58" height="2" fill="#1a1d16"/><rect x="6" y="10" width="52" height="8" fill="#39412f"/><rect x="8" y="12" width="14" height="4" fill="#c4b550"/><rect x="44" y="12" width="5" height="4" fill="#a9b19c"/><rect x="51" y="12" width="5" height="4" fill="#a9b19c"/><rect x="6" y="22" width="52" height="32" fill="#232a1f"/><rect x="6" y="22" width="52" height="1" fill="#1a1d16"/><rect x="6" y="22" width="1" height="32" fill="#1a1d16"/><rect x="18" y="36.5" width="10" height="3" fill="#3ef03e"/><rect x="36" y="36.5" width="10" height="3" fill="#3ef03e"/><rect x="30.5" y="24" width="3" height="10" fill="#3ef03e"/><rect x="30.5" y="42" width="3" height="10" fill="#3ef03e"/></svg>

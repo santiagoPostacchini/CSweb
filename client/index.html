@@ -3,22 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#232a1f">
+    <meta name="theme-color" content="#3e4637">
     <title>Counter-Strike 1.6 — LAN</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='22' fill='none' stroke='%23e4d768' stroke-width='5'/%3E%3Cpath d='M32 4v16M32 44v16M4 32h16M44 32h16' stroke='%23e4d768' stroke-width='5'/%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20viewBox%3D%270%200%2064%2064%27%20shape-rendering%3D%27crispEdges%27%20role%3D%27img%27%20aria-label%3D%27Ventana%20con%20mira%27%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%3E%3Crect%20x%3D%272%27%20y%3D%276%27%20width%3D%2760%27%20height%3D%2752%27%20fill%3D%27%234c5844%27%2F%3E%3Crect%20x%3D%272%27%20y%3D%276%27%20width%3D%2760%27%20height%3D%272%27%20fill%3D%27%23a9b19c%27%2F%3E%3Crect%20x%3D%272%27%20y%3D%276%27%20width%3D%272%27%20height%3D%2752%27%20fill%3D%27%23a9b19c%27%2F%3E%3Crect%20x%3D%2760%27%20y%3D%278%27%20width%3D%272%27%20height%3D%2750%27%20fill%3D%27%231a1d16%27%2F%3E%3Crect%20x%3D%274%27%20y%3D%2756%27%20width%3D%2758%27%20height%3D%272%27%20fill%3D%27%231a1d16%27%2F%3E%3Crect%20x%3D%276%27%20y%3D%2710%27%20width%3D%2752%27%20height%3D%278%27%20fill%3D%27%2339412f%27%2F%3E%3Crect%20x%3D%278%27%20y%3D%2712%27%20width%3D%2714%27%20height%3D%274%27%20fill%3D%27%23c4b550%27%2F%3E%3Crect%20x%3D%2744%27%20y%3D%2712%27%20width%3D%275%27%20height%3D%274%27%20fill%3D%27%23a9b19c%27%2F%3E%3Crect%20x%3D%2751%27%20y%3D%2712%27%20width%3D%275%27%20height%3D%274%27%20fill%3D%27%23a9b19c%27%2F%3E%3Crect%20x%3D%276%27%20y%3D%2722%27%20width%3D%2752%27%20height%3D%2732%27%20fill%3D%27%23232a1f%27%2F%3E%3Crect%20x%3D%276%27%20y%3D%2722%27%20width%3D%2752%27%20height%3D%271%27%20fill%3D%27%231a1d16%27%2F%3E%3Crect%20x%3D%276%27%20y%3D%2722%27%20width%3D%271%27%20height%3D%2732%27%20fill%3D%27%231a1d16%27%2F%3E%3Crect%20x%3D%2718%27%20y%3D%2736.5%27%20width%3D%2710%27%20height%3D%273%27%20fill%3D%27%233ef03e%27%2F%3E%3Crect%20x%3D%2736%27%20y%3D%2736.5%27%20width%3D%2710%27%20height%3D%273%27%20fill%3D%27%233ef03e%27%2F%3E%3Crect%20x%3D%2730.5%27%20y%3D%2724%27%20width%3D%273%27%20height%3D%2710%27%20fill%3D%27%233ef03e%27%2F%3E%3Crect%20x%3D%2730.5%27%20y%3D%2742%27%20width%3D%273%27%20height%3D%2710%27%20fill%3D%27%233ef03e%27%2F%3E%3C%2Fsvg%3E">
     <!-- Prueba de diseño: ?tema=a o ?tema=b elige la piel y se recuerda en este navegador. Al elegir una, se borra esto y la otra piel (ver docs/diseno/direcciones.md). -->
     <script>
         (() => {
-            const pieles = { a: { color: '#232a1f', acento: '%23e4d768' }, b: { color: '#0c0c0a', acento: '%23ffd60a' } };
+            const colores = { a: '#3e4637', b: '#0c0c0a' };
             let tema = new URLSearchParams(location.search).get('tema');
             try {
-                if (Object.hasOwn(pieles, tema)) localStorage.setItem('csweb:tema', tema);
+                if (Object.hasOwn(colores, tema)) localStorage.setItem('csweb:tema', tema);
                 else tema = localStorage.getItem('csweb:tema');
             } catch { /* sin almacenamiento: se usa la piel A */ }
-            if (!Object.hasOwn(pieles, tema)) tema = 'a';
-                document.documentElement.dataset.tema = tema;
-            document.querySelector('meta[name=theme-color]').content = pieles[tema].color;
-            document.querySelector('link[rel=icon]').href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='22' fill='none' stroke='" + pieles[tema].acento + "' stroke-width='5'/%3E%3Cpath d='M32 4v16M32 44v16M4 32h16M44 32h16' stroke='" + pieles[tema].acento + "' stroke-width='5'/%3E%3C/svg%3E";
+            if (!Object.hasOwn(colores, tema)) tema = 'a';
+            document.documentElement.dataset.tema = tema;
+            document.querySelector('meta[name=theme-color]').content = colores[tema];
         })();
     </script>
     <script type="module" src="./main.ts"></script>
@@ -29,7 +28,7 @@
 <main id="lobby" class="panel">
     <header>
         <div class="logo" aria-hidden="true">
-            <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="22"/><path d="M32 4v16M32 44v16M4 32h16M44 32h16"/></svg>
+            <svg width="44" height="44" viewBox="0 0 64 64" shape-rendering="crispEdges" role="img" aria-label="Ventana con mira"><rect x="2" y="6" width="60" height="52" fill="#4c5844"/><rect x="2" y="6" width="60" height="2" fill="#a9b19c"/><rect x="2" y="6" width="2" height="52" fill="#a9b19c"/><rect x="60" y="8" width="2" height="50" fill="#1a1d16"/><rect x="4" y="56" width="58" height="2" fill="#1a1d16"/><rect x="6" y="10" width="52" height="8" fill="#39412f"/><rect x="8" y="12" width="14" height="4" fill="#c4b550"/><rect x="44" y="12" width="5" height="4" fill="#a9b19c"/><rect x="51" y="12" width="5" height="4" fill="#a9b19c"/><rect x="6" y="22" width="52" height="32" fill="#232a1f"/><rect x="6" y="22" width="52" height="1" fill="#1a1d16"/><rect x="6" y="22" width="1" height="32" fill="#1a1d16"/><rect x="18" y="36.5" width="10" height="3" fill="#3ef03e"/><rect x="36" y="36.5" width="10" height="3" fill="#3ef03e"/><rect x="30.5" y="24" width="3" height="10" fill="#3ef03e"/><rect x="30.5" y="42" width="3" height="10" fill="#3ef03e"/></svg>
         </div>
         <div>
             <h1>Counter-Strike 1.6</h1>

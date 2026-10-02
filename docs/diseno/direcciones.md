@@ -7,7 +7,8 @@ internet) y capturas a 1440 px y a 390 px de ancho:
 
 | Dirección | Maqueta | Captura 1440 px | Captura 390 px |
 |---|---|---|---|
-| **A · Steam 2003 / VGUI** | [`maqueta-vgui.html`](maqueta-vgui.html) | [`vgui-1440.png`](capturas/vgui-1440.png) | [`vgui-390.png`](capturas/vgui-390.png) |
+| **A · Steam 2003 / VGUI** (v2) | [`maqueta-vgui.html`](maqueta-vgui.html) | [`vgui-1440.png`](capturas/vgui-1440.png) | [`vgui-390.png`](capturas/vgui-390.png) |
+| A (v1, reemplazada) | [`maqueta-vgui-v1.html`](maqueta-vgui-v1.html) | [`vgui-v1-1440.png`](capturas/vgui-v1-1440.png) | [`vgui-v1-390.png`](capturas/vgui-v1-390.png) |
 | **B · Flyer de LAN party** | [`maqueta-flyer-lan.html`](maqueta-flyer-lan.html) | [`flyer-lan-1440.png`](capturas/flyer-lan-1440.png) | [`flyer-lan-390.png`](capturas/flyer-lan-390.png) |
 | **C · Terminal táctica** | [`maqueta-terminal.html`](maqueta-terminal.html) | [`terminal-1440.png`](capturas/terminal-1440.png) | [`terminal-390.png`](capturas/terminal-390.png) |
 
@@ -32,38 +33,77 @@ menos. Está en la estructura común de las tres maquetas y se va a llevar a `cl
 
 ---
 
-## A · Steam 2003 / VGUI
+## A · Steam 2003 / VGUI (v2)
 
-> **Ventanas biseladas de verde oliva, como el menú de Counter-Strike 1.6 y el Steam de 2003, pero con contraste
-> moderno.**
+> **Una ventana de VGUI de verdad: plana, de verde oliva, con bisel de 1 px, barra de título, grupos con leyenda y listas hundidas.**
 
-Es la que más se parece a lo que recuerda el público: a quien jugó CS 1.6 hace veinte años le suena a la primera
-mirada. Cada panel es una "ventana" con barra de título, los campos están hundidos y los botones, en relieve. El
-botón principal es amarillo apagado; el resto es oliva. Las líneas divisorias son grabadas (una oscura y una clara
-pegadas), como en VGUI.
+![Antes y después de la A](capturas/vgui-antes-despues.png)
 
-**Peso:** cero fuentes (usa Tahoma → Verdana → Segoe UI, instaladas en Windows). Es la más liviana de las tres.
+### Qué estaba mal en la v1
+
+La primera versión se armó con la paleta de cs16.css y de memoria; nunca se comparó contra el original. Al compararla con
+las réplicas fieles ([vgui.css](https://alpynedreams.github.io/vgui.css/demo_greensteam) y
+[cs16.css](https://cs16.samke.me)), medidas en el navegador, las diferencias eran estas:
+
+| | v1 (mal replicada) | Original (medido) |
+|---|---|---|
+| Bisel | 2 px, con aro negro y **sombra dura de 8 px** | **1 px**, plano, sin sombra |
+| Barra de título | una franja con degradé y el logo grande | texto blanco en mayúsculas con 2 px de separación, ícono chico y botones de ventana, **del mismo color que la ventana** |
+| Fondo de la página | casi negro con una grilla | verde `#3e4637` liso; la ventana es **más clara** que el fondo |
+| Botones | rellenos de amarillo, con relieve grueso | del **color de la ventana**, texto blanco y bisel de 1 px; el "por defecto" lleva un aro negro |
+| Agrupación | títulos con una línea grabada | **grupos con leyenda** (`fieldset`) de borde hundido de 1 px |
+| Datos de la partida | caja con texto grande | **lista hundida** con filas clave–valor |
+| Acento | `#e4d768` en todos lados | `#c4b550` en los títulos grandes; `#e0d366` sólo en texto chico (para llegar a AA) |
+| Tipografía | Tahoma | Trebuchet MS (la de la réplica), con Verdana y Tahoma de respaldo |
+
+### Qué cambió en la v2
+
+- Todo el relieve es de **1 px** y no hay sombras. Fondo `#3e4637`, ventana `#4c5844`, bisel claro `#a9b19c` y oscuro
+  `#292d23`.
+- Cada panel tiene una **barra de título** fija arriba (aunque el contenido tenga scroll) con el ícono del logo, el texto
+  en mayúsculas y los botones de minimizar y cerrar. **Son sólo decoración**: no hacen nada. Si preferís que no estén, se
+  borra una línea del CSS (`CTRLS`/el segundo `url(...)` de `.panel::before`).
+- El inicio queda en dos **grupos con leyenda**: "Unirse a una partida" y "Crear una partida". El marcado ganó dos
+  `<fieldset class="group">`; los `id` no cambiaron.
+- La barra de carga es de bloques de 8 px con 2 px de aire (el mismo patrón que cs16.css).
+- Los desplegables ("Más opciones", "Cómo funciona", "Diagnóstico") llevan un cuadradito `+`/`–`, como los árboles de VGUI.
+
+**Peso:** cero fuentes.
 
 | Token | Valor | Contraste |
 |---|---|---|
-| `--bg` fondo de página | `#232a1f` | texto 11,91:1 |
-| `--panel` ventana | `#4a5942` | texto 6,05:1 · secundario 4,73:1 |
-| `--inset` campo / caja hundida | `#2f372a` | texto 9,96:1 · acento 7,22:1 |
-| `--text` / `--muted` | `#e6e8dc` / `#c9d0bd` | AA / AA sobre la ventana |
-| `--accent` / `--accent-ink` | `#e4d768` / `#1b1d0e` | 5,08:1 sobre la ventana · tinta sobre acento 11,57:1 |
-| `--hi` / `--lo` bisel | `#b4bba4` / `#1c2118` | borde de control 3,78:1 |
-| `--ok` / `--err` | `#9be08a` / `#ff9a82` | 7,89:1 / 6,00:1 sobre el campo |
-| foco | punteado blanco de 2 px | 7,50:1 |
+| `--bg` escritorio y campos | `#3e4637` | texto 7,17:1 |
+| `--panel` ventana | `#4c5844` | texto 5,49:1 · blanco 7,54:1 |
+| `--text` / `--muted` | `#d8ded3` / `#cbd2c0` | 5,49:1 / 4,85:1 sobre la ventana |
+| `--accent` | `#c4b550` | 3,61:1: sólo títulos grandes (19 px en negrita) |
+| `--accent-t` | `#e0d366` | 4,91:1: texto chico y botón principal |
+| `--hi` / `--lo` bisel | `#a9b19c` / `#292d23` | borde de control 3,39:1 (el original, `#899281`, daba 2,33:1) |
+| `--ok` / `--err` | `#9be08a` / `#ff9a82` | 6,28:1 / 4,77:1 sobre el campo |
+| foco | punteado blanco de 2 px | 7,54:1 |
 
-Tipografías: pila del sistema. Radios: 0. Sombras: `0 0 0 1px #000, 8px 8px 0 #0009` (dura, sin desenfoque).
-Espaciado: relleno de ventana 18 px (14 px en pantallas de 480 px o menos), separación de 12 px, texto de 14 px
-(15 px con puntero táctil).
+Tipografía: Trebuchet MS → Verdana → Tahoma. Radios: 0. Sombras: ninguna (un contorno negro de 1 px). Espaciado: relleno de
+ventana 14 px (12 px en celular), texto de 14 px (15 px con puntero táctil).
 
-**Lo que es distinto de la plantilla actual:** nada de naranja y panel flotante; ahora hay barra de título, bisel
-y la barra de carga es de bloques amarillos, como la de Steam.
+**Lo que sigue siendo distinto del original, a propósito:** los botones y campos miden 40 px de alto o más (el original
+medía unos 23 px), y el borde claro del bisel es un poco más claro para llegar a 3:1. Fuera de eso, el color, el bisel y la
+tipografía son los del original.
 
-**Riesgos:** se ve "retro" de verdad; si a alguien le parece anticuado, no hay forma de suavizarlo sin perder la
-gracia. Con 14 px el texto es chico (es lo auténtico), pero sube a 15 px en celulares.
+**Riesgos:** el botón principal (amarillo sobre fondo oliva, con aro negro) tiene menos presencia que en la v1, porque en
+VGUI no existen los botones rellenos. Si en las pruebas no se encuentra a la primera, se le puede dar más peso sin romper
+el estilo (fondo un tono más claro y texto algo mayor).
+
+## Logo
+
+El logo anterior (un círculo con cuatro marcas) era genérico. Hay **cuatro propuestas propias** en
+[`logos.html`](logos.html) ([captura](capturas/logos.png)), dibujadas con rectángulos sobre una grilla de 64 px: una
+ventana VGUI con la mira verde de CS 1.6 (**1**), una etiqueta de clan `[CS]` con el 1.6 en píxeles (**2**), un bloque con
+display de siete segmentos que marca 1.6 (**3**) y un monitor de tubo con la mira (**4**). Ninguna usa el logo, el arte ni la
+tipografía de Valve; la mira verde de cuatro barras es la mira por defecto del juego, no una marca.
+
+Por ahora está puesta la **1**, para verla en contexto; cambiar de logo es reemplazar el `<svg>` del `<header>` en los dos
+`index.html`, el favicon (enlace `rel="icon"`) y `client/p2p/public/icon.svg`.
+
+---
 
 ## B · Flyer de LAN party
 
@@ -183,7 +223,8 @@ separando el almacenamiento entre pestañas.
 | `client/style.css` | Ahora es solo la **estructura** (tamaños, posiciones, estados) y usa variables. Importa las dos pieles. |
 | `client/skin-a.css`, `client/skin-b.css` | Una piel cada una, anidadas bajo `html:not([data-tema="b"])` y `html[data-tema="b"]` (CSS anidado; Vite lo aplana al construir). |
 | `client/fonts/anton-latin.woff2` y `anton-OFL.txt` | Anton, subconjunto latino, 18,6 KB, licencia OFL 1.1, bajada de Google Fonts y servida desde el repo. Va en `client/fonts/` y no en `client/p2p/public/` porque la hoja la comparten las dos páginas. |
-| `client/index.html`, `client/p2p/index.html` | Un `<script>` en el `<head>` que lee `?tema=`, fija `data-tema` en `<html>` y ajusta `theme-color` y el favicon al acento de cada piel. Los `id`, las clases y los `hidden` que usa TypeScript no se tocaron. |
+| `client/index.html`, `client/p2p/index.html` | Un `<script>` en el `<head>` que lee `?tema=`, fija `data-tema` en `<html>` y ajusta `theme-color`. El logo nuevo (en el `<header>` y en el favicon). En el inicio de `client/p2p/index.html`, dos `<fieldset class="group">` con `<legend>` (la A los dibuja como grupos de VGUI; la B los acomoda como antes). Los `id`, las clases y los `hidden` que usa TypeScript no se tocaron. |
+| `client/p2p/public/icon.svg` y `manifest.webmanifest` | El ícono de la app instalada es el logo nuevo; `theme_color` y `background_color` pasan a `#3e4637`. |
 | TypeScript | **Ningún cambio.** `main.ts` sigue importando `style.css`. |
 
 **Qué verifiqué**

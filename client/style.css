@@ -33,7 +33,7 @@ body.playing canvas { visibility: visible; }
 
 header { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
 .logo { flex: none; }
-.logo svg { display: block; width: 44px; height: 44px; fill: none; stroke: var(--accent); stroke-width: 5; }
+.logo svg { display: block; width: 44px; height: 44px; }
 h1 { margin: 0; }
 .sub { margin: 2px 0 0; }
 
