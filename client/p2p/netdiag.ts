@@ -168,6 +168,8 @@ export async function unlockLocalAddresses(): Promise<boolean> {
     }
 }
 
+export const hasLocalAddresses = () => micStream !== null;
+
 export function releaseMic() {
     micStream?.getTracks().forEach(t => t.stop());
     micStream = null;

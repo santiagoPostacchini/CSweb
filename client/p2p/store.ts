@@ -1,5 +1,5 @@
-// Guarda el paquete de archivos del juego en IndexedDB (en partes de ~8 MB, como Blobs en disco),
-// así no hay que volver a elegir la carpeta ni volver a recibirlo del anfitrión.
+// Guarda los paquetes de archivos del juego en IndexedDB (en partes de ~8 MB, como Blobs en disco),
+// así no hay que volver a elegir la carpeta ni volver a recibirlos del anfitrión.
 
 // ?perfil=xxx usa otro espacio de almacenamiento (para probar anfitrión e invitado en la misma PC)
 const PROFILE = new URLSearchParams(location.search).get('perfil')?.replace(/[^a-z0-9_-]/gi, '');
@@ -37,14 +37,6 @@ async function store(mode: IDBTransactionMode) {
     return (await db()).transaction(STORE, mode).objectStore(STORE);
 }
 
-export async function getMeta(): Promise<PackMeta | null> {
-    try {
-        return (await req((await store('readonly')).get('meta'))) as PackMeta ?? null;
-    } catch {
-        return null;
-    }
-}
-
 // Todo el paquete como un único Blob (respaldado por disco: no ocupa RAM)
 export async function getPackBlob(meta: PackMeta): Promise<Blob> {
     const parts: Blob[] = [];
@@ -63,8 +55,14 @@ export class PackWriter {
     private parts = 0;
     private written = 0;
     private flushing: Promise<void> = Promise.resolve();
+    private releaseLock: (() => void) | null = null;
 
-    constructor(private version: string) {}
+    constructor(private version: string) {
+        // se suelta al terminar (o al cerrar la pestaña si la descarga quedó a medias)
+        navigator.locks?.request(writeLock(version), () => new Promise<void>((release) => {
+            this.releaseLock = release;
+        })).catch(() => undefined);
+    }
 
     get bytes() {
         return this.written + this.pending;
@@ -97,18 +95,79 @@ export class PackWriter {
     async finish(info: Omit<PackMeta, 'version' | 'size' | 'parts'>): Promise<PackMeta> {
         await this.flush();
         const meta: PackMeta = { ...info, version: this.version, size: this.written, parts: this.parts };
-        await req((await store('readwrite')).put(meta, 'meta'));
-        await removeOtherVersions(this.version);
+        await usePack(meta);
+        this.releaseLock?.();
         return meta;
     }
 }
 
-async function removeOtherVersions(version: string) {
-    const keys = await req((await store('readonly')).getAllKeys());
-    const stale = keys.filter(k => k !== 'meta' && !String(k).startsWith(`${version}:`));
-    if (!stale.length) return;
+// Se guardan varios paquetes (cada anfitrión puede tener el suyo: la versión sale de su
+// instalación), así alternar de anfitrión no obliga a bajar todo de nuevo. Lista "packs", el
+// último usado primero; el más viejo se borra cuando no entra.
+const MAX_PACKS = 3;
+
+// Lanza si no se puede leer: quien después reescribe la lista no debe tomarla por vacía (borraría todo)
+async function readPacks(): Promise<PackMeta[]> {
+    const s = await store('readonly');
+    const list = await req(s.get('packs')) as PackMeta[] | undefined;
+    if (list) return list;
+    const old = await req(s.get('meta')) as PackMeta | undefined; // formato anterior: un solo paquete
+    return old ? [old] : [];
+}
+
+export async function listPacks(): Promise<PackMeta[]> {
+    try {
+        return await readPacks();
+    } catch {
+        return [];
+    }
+}
+
+// El paquete en uso (el último cargado, recibido o jugado)
+export async function getMeta(): Promise<PackMeta | null> {
+    return (await listPacks())[0] ?? null;
+}
+
+export async function findPack(version: string): Promise<PackMeta | null> {
+    return (await listPacks()).find(p => p.version === version) ?? null;
+}
+
+// Marca el paquete como el último usado y borra los que quedan fuera de la lista
+export async function usePack(meta: PackMeta) {
+    const list = [meta, ...(await readPacks()).filter(p => p.version !== meta.version)];
+    await savePacks(list.slice(0, MAX_PACKS));
+}
+
+// Borra un paquete guardado (por ejemplo, uno dañado o con archivos no permitidos)
+export async function forgetPack(version: string) {
+    await savePacks((await readPacks()).filter(p => p.version !== version));
+}
+
+// Mientras se escribe un paquete, su versión queda marcada con un Web Lock: así otra pestaña del
+// mismo perfil no borra las partes de una descarga en curso al limpiar
+const writeLock = (version: string) => `${DB_NAME}:escribiendo:${version}`;
+
+async function versionsBeingWritten(): Promise<Set<string>> {
+    try {
+        const state = await navigator.locks?.query();
+        const names = [...(state?.held ?? []), ...(state?.pending ?? [])].map(l => l.name ?? '');
+        return new Set(names.filter(n => n.startsWith(writeLock(''))).map(n => n.slice(writeLock('').length)));
+    } catch {
+        return new Set();
+    }
+}
+
+async function savePacks(list: PackMeta[]) {
     const s = await store('readwrite');
-    await Promise.all(stale.map(k => req(s.delete(k))));
+    await req(s.put(list, 'packs'));
+    await req(s.delete('meta'));
+    // partes de paquetes que ya no están en la lista (incluidas descargas a medias abandonadas)
+    const keep = new Set([...list.map(p => p.version), ...(await versionsBeingWritten())]);
+    const keys = await req((await store('readonly')).getAllKeys());
+    const stale = keys.filter(k => k !== 'packs' && !keep.has(String(k).split(':')[0]));
+    if (!stale.length) return;
+    const w = await store('readwrite');
+    await Promise.all(stale.map(k => req(w.delete(k))));
 }
 
 export async function writeStream(version: string, stream: ReadableStream<Uint8Array>, onBytes?: (n: number) => void) {

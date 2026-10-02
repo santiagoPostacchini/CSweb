@@ -1,5 +1,5 @@
 // Helpers de interfaz compartidos por la página LAN y la de GitHub Pages.
-import { enterFullscreen, guardShortcuts, keyboardLockSupport } from './shortcuts';
+import { enterFullscreen, guardShortcuts, isChromium, keyboardLockSupport } from './shortcuts';
 
 export const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -47,6 +47,8 @@ export function allowUnload() {
     unloadAllowed = true;
 }
 
+let warnedWindowed = false;
+
 // Bloqueo de atajos del navegador + pantalla completa (Ctrl+W deja de cerrar la pestaña)
 export function setupGameGuards(canvas: HTMLCanvasElement, fullscreenInput: HTMLInputElement) {
     const lockSupport = keyboardLockSupport();
@@ -61,6 +63,16 @@ export function setupGameGuards(canvas: HTMLCanvasElement, fullscreenInput: HTML
             ? 'Saliste de pantalla completa: Ctrl+W vuelve a cerrar la pestaña. Click en el juego para volver.'
             : 'Saliste de pantalla completa. Click en el juego para volver.', 6000);
     });
+    // sin pantalla completa (y fuera de una app instalada) Ctrl+W cierra: se avisa una vez al entrar
+    document.addEventListener('pointerlockchange', () => {
+        if (!document.pointerLockElement || lockSupport !== 'ok' || warnedWindowed) return;
+        // el mismo click puede estar volviendo a pantalla completa: se mira un instante después
+        setTimeout(() => {
+            if (document.fullscreenElement || !document.pointerLockElement || warnedWindowed) return;
+            warnedWindowed = true;
+            showToast(windowedHint(), 9000);
+        }, 1000);
+    });
     fullscreenInput.checked = localStorage.getItem('csweb:fullscreen') !== 'false';
     fullscreenInput.addEventListener('change', () => {
         localStorage.setItem('csweb:fullscreen', String(fullscreenInput.checked));
@@ -74,15 +86,28 @@ export function setupGameGuards(canvas: HTMLCanvasElement, fullscreenInput: HTML
     };
 }
 
+// Sin pantalla completa Ctrl+W cierra la pestaña. En Chrome/Edge la otra salida es instalar la
+// página como app (ventana propia, sin teclas reservadas).
+function windowedHint() {
+    return isChromium
+        ? 'Sin pantalla completa, Ctrl+W cierra la pestaña. Para jugar en ventana sin ese problema, instalá la página '
+            + 'como app (menú ⋮ → Transmitir, guardar y compartir → Instalar página como app).'
+        : 'Sin pantalla completa, Ctrl+W cierra la pestaña: activá "Pantalla completa" antes de entrar.';
+}
+
 export function lockHintHtml(lockSupport: ReturnType<typeof keyboardLockSupport>) {
-    if (lockSupport === 'ok') return '';
+    if (lockSupport === 'ok' || lockSupport === 'app') return '';
     if (lockSupport === 'insecure') {
         const url = `https://${location.host}${location.pathname}`;
         return `Para que <kbd>Ctrl</kbd>+<kbd>W</kbd> no cierre la pestaña entrá por <a href="${esc(url)}">${esc(url)}</a> `
             + '(la primera vez el navegador avisa del certificado: "Configuración avanzada" → "Continuar").';
     }
+    if (lockSupport === 'old-firefox') {
+        return 'Tu Firefox no puede bloquear <kbd>Ctrl</kbd>+<kbd>W</kbd>: actualizalo (versión 151 o más nueva) y jugá en '
+            + 'pantalla completa. Mientras tanto, si lo apretás te va a pedir confirmación antes de cerrar.';
+    }
     return 'Este navegador no permite bloquear <kbd>Ctrl</kbd>+<kbd>W</kbd>: si lo apretás te va a pedir confirmación '
-        + 'antes de cerrar. Con Chrome o Edge se bloquea del todo.';
+        + 'antes de cerrar. Con Chrome, Edge o Firefox 151+ en pantalla completa se bloquea del todo.';
 }
 
 export function savedName() {

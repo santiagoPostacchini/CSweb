@@ -16,6 +16,9 @@ const PER_PEER = 2;           // pedidos simultáneos por fuente
 const REQUEST_TIMEOUT = 20_000;
 const STALL_TIMEOUT = 40_000; // sin avances: se da por fallido el enjambre
 const MAX_SERVE = 3;          // trozos que se sirven a la vez (para no ahogar la conexión del juego)
+// Cuánto se le sirve como mucho a un mismo jugador, en paquetes completos: alcanza para reintentos,
+// pero nadie puede hacer subir datos sin fin (sobre todo si la conexión pasa por el relay TURN)
+const MAX_SERVED_PACKS = 2;
 
 type Ctl =
     | { t: 'who'; v: string }
@@ -29,7 +32,6 @@ type Manifest = { chunk: number; size: number; hashes: string[] };
 
 export class SwarmUnavailable extends Error {}
 
-const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 const sha256 = async (data: BufferSource) => hex(await crypto.subtle.digest('SHA-256', data));
 const toBytes = (d: unknown): Uint8Array => d instanceof Uint8Array ? d : new Uint8Array(d as ArrayBuffer);
@@ -40,7 +42,7 @@ type Download = {
     banned: Set<string>;
     cooldown: Map<string, number>;
     strikes: Map<string, number>;
-    inflight: Map<number, { peer: string; at: number }>;
+    inflight: Map<number, { peer: string; at: number; verifying?: boolean }>;
     got: Map<number, Uint8Array>;
     manifest: Manifest | null;
     manifestFrom: string;
@@ -54,8 +56,10 @@ export class Swarm {
     private blobs = new Map<string, Promise<Blob>>();
     private manifests = new Map<string, Promise<Manifest>>();
     private serving = 0;
+    private served = new Map<string, number>();
     private dl: Download | null = null;
     private wakeUp: (() => void) | null = null;
+    private woken = false;
 
     // local(): el paquete completo que este jugador tiene guardado (null si todavía no lo tiene)
     constructor(room: RoomLike, private local: () => PackMeta | null) {
@@ -105,7 +109,9 @@ export class Swarm {
                 break;
             case 'get': {
                 const count = meta ? Math.ceil(meta.size / SWARM_CHUNK) : 0;
-                if (!meta || meta.version !== m.v || !Number.isInteger(m.i) || m.i < 0 || m.i >= count || this.serving >= MAX_SERVE) {
+                const served = this.served.get(peerId) ?? 0;
+                if (!meta || meta.version !== m.v || !Number.isInteger(m.i) || m.i < 0 || m.i >= count
+                    || this.serving >= MAX_SERVE || served > meta.size * MAX_SERVED_PACKS) {
                     await this.ctl.send({ t: 'nope', v: m.v, i: m.i }, { target: peerId });
                     break;
                 }
@@ -113,6 +119,8 @@ export class Swarm {
                 try {
                     const blob = await this.blobFor(meta);
                     const buf = await blob.slice(m.i * SWARM_CHUNK, (m.i + 1) * SWARM_CHUNK).arrayBuffer();
+                    // se relee: mientras se leía el trozo pudo terminar otro envío al mismo jugador
+                    this.served.set(peerId, (this.served.get(peerId) ?? 0) + buf.byteLength);
                     await this.data.send(new Uint8Array(buf), { target: peerId, metadata: { v: m.v, i: m.i } });
                 } finally {
                     this.serving--;
@@ -150,13 +158,23 @@ export class Swarm {
 
     // ------------------------------------------------------------ descargar
 
+    // Despierta al bucle de descarga; si no estaba esperando, la próxima espera vuelve enseguida
     private wake() {
+        this.woken = true;
         this.wakeUp?.();
     }
 
     private async nextEvent(ms = 400) {
-        await Promise.race([new Promise<void>(r => (this.wakeUp = r)), sleep(ms)]);
-        this.wakeUp = null;
+        if (!this.woken) {
+            let timer = 0;
+            await new Promise<void>((r) => {
+                this.wakeUp = r;
+                timer = window.setTimeout(r, ms);
+            });
+            clearTimeout(timer);
+            this.wakeUp = null;
+        }
+        this.woken = false;
     }
 
     private strike(dl: Download, peer: string, ban = false) {
@@ -188,14 +206,18 @@ export class Swarm {
         if (!dl?.manifest || meta?.v !== dl.v || typeof meta.i !== 'number') return;
         const i = meta.i;
         const req = dl.inflight.get(i);
-        if (!req || req.peer !== peerId) return; // nadie lo pidió a esa fuente
-        dl.inflight.delete(i);
+        // nadie lo pidió a esa fuente, o es un duplicado del que ya se está verificando
+        if (!req || req.peer !== peerId || req.verifying) return;
+        req.verifying = true;
         const { chunk, size, hashes } = dl.manifest;
         const expected = Math.min(chunk, size - i * chunk);
-        if (bytes.length !== expected || await sha256(bytes as BufferSource) !== hashes[i]) {
+        const ok = bytes.length === expected && await sha256(bytes as BufferSource) === hashes[i];
+        // recién ahora deja de estar "en camino": mientras se verificaba, el bucle no lo vuelve a pedir
+        if (dl.inflight.get(i) === req) dl.inflight.delete(i);
+        if (!ok) {
             diag.log(`enjambre: el trozo ${i} de ${peerId.slice(0, 6)} no coincide con el manifiesto`);
             this.strike(dl, peerId, true);
-        } else {
+        } else if (this.dl === dl) {
             dl.got.set(i, bytes);
             dl.fromPeer.set(peerId, (dl.fromPeer.get(peerId) ?? 0) + 1);
         }
@@ -210,11 +232,13 @@ export class Swarm {
                 clearTimeout(t);
                 resolve(m);
             };
-            this.ctl.send({ t: 'man', v: dl.v }, { target: host }).catch(reject);
+            this.ctl.send({ t: 'man', v: dl.v }, { target: host })
+                .catch(e => reject(new SwarmUnavailable(`no se pudo pedir el manifiesto: ${(e as Error).message}`)));
         });
         dl.onManifest = null;
         const count = Math.ceil(size / man.chunk);
-        if (man.size !== size || man.chunk < 64 * 1024 || man.chunk > 16 * 1024 * 1024 || man.hashes.length !== count) {
+        // quien sirve siempre corta en trozos de SWARM_CHUNK: otro tamaño haría fallar todos los trozos
+        if (man.size !== size || man.chunk !== SWARM_CHUNK || !Array.isArray(man.hashes) || man.hashes.length !== count) {
             throw new SwarmUnavailable('el manifiesto no coincide con el paquete anunciado');
         }
         return man;
@@ -228,6 +252,7 @@ export class Swarm {
             inflight: new Map(), got: new Map(), manifest: null, manifestFrom: host, onManifest: null, fromPeer: new Map(),
         };
         this.dl = dl;
+        this.woken = false;
         try {
             const askWho = () => this.ctl.send({ t: 'who', v: version }).catch(() => undefined);
             await askWho();

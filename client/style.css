@@ -489,6 +489,19 @@ form.inline button {
     white-space: nowrap;
 }
 
+/* Pasar anfitrión: discreto, salvo que otro jugador tenga claramente mejor conexión */
+#invite #invite-handoff {
+    color: var(--text);
+    background: #24271f;
+    border: 1px solid var(--line);
+}
+
+#invite #invite-handoff.suggested {
+    color: var(--accent-ink);
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
 @media (max-width: 480px) {
     .grid2 {
         grid-template-columns: 1fr;
@@ -507,6 +520,22 @@ form.inline button {
 .advanced summary, .diag summary {
     cursor: pointer;
     margin-bottom: 8px;
+}
+
+#options {
+    margin-top: 16px;
+}
+
+#options .checks {
+    margin-top: 0;
+}
+
+#host-options {
+    margin-top: 14px;
+}
+
+#host-options[hidden] {
+    display: none;
 }
 
 .diag {

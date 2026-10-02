@@ -6,12 +6,14 @@ import '../keepalive';
 import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, playerCommands, quoteCvar, startEngine } from '../engine';
 import { $, allowUnload, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast } from '../ui';
 import { Xash3DP2P } from './p2pnet';
-import { buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
-import { PackWriter, getMeta, getPackBlob, persistStorage, writeStream, type PackMeta } from './store';
-import { GuestRoom, HostRoom, newRoomCode, normalizeCode, selfId, type GameInfo } from './room';
-import { Swarm } from './swarm';
-import { giveUpAfter, planMigration, saveMigration, takeMigration, takeoverDelay, type Migration } from './migration';
-import { checkNetwork, diag, hasAutoRelay, loadTurn, prepareIce, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
+import { PackRejected, buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
+import { PackWriter, findPack, forgetPack, getMeta, getPackBlob, persistStorage, usePack, writeStream, type PackMeta } from './store';
+import { GuestRoom, HostRoom, newRoomCode, normalizeCode, selfId, type GameInfo, type RosterEntry } from './room';
+import { Swarm, SwarmUnavailable } from './swarm';
+import { giveUpAfter, planMigration, saveMigration, successors, takeMigration, takeoverDelay, type Migration } from './migration';
+import { careForHost } from './hostcare';
+import { SUGGEST_MARGIN_MS } from './quality';
+import { checkNetwork, diag, hasAutoRelay, hasLocalAddresses, loadTurn, prepareIce, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
 
 const canvas = $<HTMLCanvasElement>('canvas');
 const lobby = $('lobby');
@@ -34,14 +36,11 @@ let meta: PackMeta | null = null;
 // Credenciales de relay (TURN): se piden apenas abre la página y se esperan antes de crear/unir una sala
 const iceReady = prepareIce();
 
-// Línea informativa con el tipo de red y si hay relay disponible
-function showNetCheck() {
-    const el = $('net-check');
-    Promise.all([checkNetwork(), iceReady]).then(([net]) => {
-        const relay = hasAutoRelay() ? 'relay automático disponible' : 'sin relay automático';
-        el.textContent = `Tu red: ${net.summary} · ${relay}`;
-        el.hidden = false;
-    }).catch(() => undefined);
+// Tipo de red y relay disponible: sólo para el diagnóstico de conexión
+function logNetCheck() {
+    Promise.all([checkNetwork(), iceReady])
+        .then(() => diag.log(hasAutoRelay() ? 'relay automático disponible' : 'sin relay automático'))
+        .catch(() => undefined);
 }
 
 function showError(msg: string) {
@@ -82,9 +81,11 @@ function fail(err: unknown) {
     else showError(msg);
 }
 
-// Pedir el micrófono hace que el navegador use IPs locales reales (ver netdiag.ts)
+// Pedir el micrófono hace que el navegador use IPs locales reales (ver netdiag.ts).
+// Devuelve true si recién ahora se consiguieron (las conexiones ya armadas usan las ocultas).
 async function prepareNetwork() {
-    if (betterNetInput.checked) await unlockLocalAddresses();
+    if (!betterNetInput.checked || hasLocalAddresses()) return false;
+    return unlockLocalAddresses();
 }
 
 // Cuenta bytes a medida que pasan (para la barra de progreso)
@@ -107,12 +108,23 @@ async function loadEngine(x: Xash3DP2P, pack: PackMeta) {
     const { sink, stats } = createFsSink(FS);
     const blob = await getPackBlob(pack);
     let last = 0;
-    await readPack(counting(blob.stream(), (n) => {
-        const now = performance.now();
-        if (now - last < 100) return;
-        last = now;
-        setLoading('Preparando archivos del juego…', `${stats.files} de ${pack.files} archivos`, n / blob.size);
-    }), sink);
+    try {
+        await readPack(counting(blob.stream(), (n) => {
+            const now = performance.now();
+            if (now - last < 100) return;
+            last = now;
+            setLoading('Preparando archivos del juego…', `${stats.files} de ${pack.files} archivos`, n / blob.size);
+        }), sink);
+    } catch (e) {
+        // un paquete con archivos no permitidos no se vuelve a usar: la próxima vez se baja de nuevo
+        if (e instanceof PackRejected) {
+            await forgetPack(pack.version);
+            meta = await getMeta();
+            throw new Error(`${e.message}. Se descartó ese paquete: recargá la página y `
+                + (meta ? 'seguís con los otros archivos guardados.' : 'volvé a elegir la carpeta del juego (o volvé a entrar a la partida para recibirlos de nuevo).'));
+        }
+        throw e;
+    }
     mountExtras(FS, extras);
 }
 
@@ -122,6 +134,9 @@ function renderFiles() {
     const status = $('files-status');
     const mapSelect = $<HTMLSelectElement>('map');
     const hostBtn = $<HTMLButtonElement>('host-btn');
+    // con los archivos ya cargados, la explicación sobra y el botón sólo sirve para cambiarlos
+    $('folder-hint').hidden = Boolean(meta);
+    $('folder-btn').textContent = meta ? 'Usar otra carpeta…' : 'Elegir carpeta Half-Life…';
     if (!meta) {
         status.textContent = 'no cargados';
         status.classList.remove('ok');
@@ -129,7 +144,7 @@ function renderFiles() {
         mapSelect.innerHTML = '<option>de_dust2</option>';
         return;
     }
-    status.textContent = `listos · ${meta.files} archivos · ${mb(meta.size)}`;
+    status.textContent = `✓ listos · ${mb(meta.size)}`;
     status.classList.add('ok');
     hostBtn.disabled = false;
     const saved = localStorage.getItem('csweb:map') || 'de_dust2';
@@ -150,7 +165,11 @@ async function loadFolder(fileList: FileList) {
             + 'Elegí la carpeta Half-Life (steamapps\\common\\Half-Life).');
     }
     const version = await packVersion(entries);
-    if (meta?.version === version) {
+    const saved = await findPack(version);
+    if (saved) {
+        meta = saved;
+        await usePack(saved);
+        renderFiles();
         showToast('Esos archivos ya estaban cargados');
         return;
     }
@@ -259,6 +278,8 @@ async function runHost({ pack, name, touch, map, maxPlayers, hostname, turn, cod
     }, turn, epoch);
     // el anfitrión también es una fuente del enjambre de archivos
     new Swarm(room.signaling, () => pack);
+    careForHost((away) => room.setAway(away));
+    setupHandoff(room, code, epoch);
 
     $('invite-link').textContent = link;
     $('invite-copy').onclick = async () => {
@@ -295,7 +316,7 @@ function showHome() {
         $<HTMLInputElement>('turn-url').value = turn.url;
         $<HTMLInputElement>('turn-user').value = turn.username;
         $<HTMLInputElement>('turn-pass').value = turn.credential;
-        ($('turn-url').closest('details') as HTMLDetailsElement).open = true;
+        $<HTMLDetailsElement>('options').open = true;
     }
     renderFiles();
 
@@ -319,9 +340,10 @@ function showHome() {
 
 function showJoin(code: string, migration: Migration | null = null) {
     $('join-view').hidden = false;
+    $('host-options').hidden = true;
     $('join-code').textContent = code;
     const guest = new GuestRoom(code, loadTurn(), migration
-        ? { minEpoch: migration.lostEpoch, exclude: migration.excludePeer ? [migration.excludePeer] : [] }
+        ? { minEpoch: migration.lostEpoch, maxEpoch: migration.lostEpoch + 1, exclude: migration.excludePeer ? [migration.excludePeer] : [] }
         : {});
     const hint = $('join-hint');
     const searching = setTimeout(() => {
@@ -335,10 +357,11 @@ function showJoin(code: string, migration: Migration | null = null) {
         $('join-hostname').textContent = `${info.hostname} (anfitrión: ${info.host})`;
         $('join-map').textContent = info.map;
         $('join-players').textContent = `${info.players} / ${info.maxPlayers}`;
-        const cached = meta?.version === info.pack.version;
-        hint.textContent = cached
-            ? 'Ya tenés los archivos del juego guardados: entrás al toque.'
-            : `La primera vez se reciben ~${mb(info.pack.size)} de archivos del juego desde el anfitrión.`;
+        findPack(info.pack.version).then((saved) => {
+            hint.textContent = saved
+                ? 'Ya tenés los archivos del juego guardados: entrás al toque.'
+                : `La primera vez se reciben ~${mb(info.pack.size)} de archivos del juego desde el anfitrión.`;
+        }).catch(() => undefined);
     };
     guest.onHostLeft = () => {
         $('host-online').classList.remove('on');
@@ -376,10 +399,11 @@ function reloadInto(code: string) {
 
 let migrating = false;
 
-// Se perdió al anfitrión en plena partida: se elige al sucesor y todos recargan la página
-function beginMigration(guest: GuestRoom) {
+// Se perdió al anfitrión en plena partida (o pasó la partida a `prefer`): se elige al sucesor y
+// todos recargan la página
+function beginMigration(guest: GuestRoom, prefer: string | null = null) {
     if (migrating || !guest.info) return;
-    const plan = planMigration(guest.code, guest.info, guest.hostPeerId, selfId);
+    const plan = planMigration(guest.code, guest.info, guest.hostPeerId, selfId, prefer);
     if (!plan.candidates) {
         diag.log('migración imposible: ningún jugador puede tomar la partida');
         showToast('El anfitrión se desconectó y ningún otro jugador puede tomar la partida', 20000);
@@ -387,26 +411,87 @@ function beginMigration(guest: GuestRoom) {
     }
     migrating = true;
     diag.log(`migrando la partida (epoch ${plan.lostEpoch}, lugar ${plan.slot} de ${plan.candidates})`);
-    setLoading('El anfitrión se desconectó', 'Migrando la partida a otro jugador…');
+    setLoading(prefer ? 'El anfitrión pasó la partida' : 'El anfitrión se desconectó', 'Migrando la partida a otro jugador…');
     saveMigration(plan);
     reloadInto(plan.code);
+}
+
+// Este anfitrión deja su lugar y vuelve como un jugador más del anfitrión nuevo (epoch `epoch` + 1)
+function reloadAsGuest(code: string, epoch: number, candidates = 0) {
+    saveMigration({
+        code,
+        lostEpoch: epoch,
+        excludePeer: selfId,
+        slot: -1,
+        candidates,
+        settings: { map: '', maxPlayers: 0, hostname: '' },
+        at: Date.now(),
+    });
+    reloadInto(code);
 }
 
 // Otro anfitrión con más prioridad apareció mientras este seguía vivo: pasa a ser un jugador más
 function rejoinAsGuest(code: string, winnerEpoch: number) {
     if (migrating) return;
     migrating = true;
-    saveMigration({
-        code,
-        lostEpoch: winnerEpoch,
-        excludePeer: null,
-        slot: -1,
-        candidates: 0,
-        settings: { map: '', maxPlayers: 0, hostname: '' },
-        at: Date.now(),
-    });
     setLoading('Reconectando', 'Otro jugador tomó la partida…');
-    reloadInto(code);
+    reloadAsGuest(code, winnerEpoch);
+}
+
+// A quién conviene pasarle la partida: el de mejor conexión con todos (incluido este anfitrión, que
+// sigue jugando); sin mediciones, el que entró antes
+function bestHost(roster: RosterEntry[]): RosterEntry | null {
+    const key = (p: RosterEntry) => p.score ?? Infinity;
+    return roster.filter(p => p.canHost).sort((a, b) => key(a) - key(b) || a.seq - b.seq)[0] ?? null;
+}
+
+// Botón "Pasar anfitrión" (en el cartel del link, que aparece con ESC): propone al jugador con mejor
+// conexión con todos y le pasa la partida con el mismo mecanismo de la migración
+function setupHandoff(room: HostRoom, code: string, epoch: number) {
+    const btn = $<HTMLButtonElement>('invite-handoff');
+    let target: RosterEntry | null = null;
+    let suggested: string | null = null;
+    // el primer click pide confirmación (un confirm() frenaría el servidor de todos mientras está abierto)
+    let armed = 0;
+    const refresh = () => {
+        if (armed) return; // mientras se confirma, el destino no cambia
+        const own = room.ownScore;
+        target = bestHost(room.roster());
+        btn.hidden = !target;
+        if (!target) return;
+        const name = target.name || 'otro jugador';
+        const better = target.score !== null && own !== null && target.score + SUGGEST_MARGIN_MS <= own;
+        btn.classList.toggle('suggested', better);
+        btn.textContent = `Pasar anfitrión a ${name}`;
+        btn.title = target.score !== null ? `Su peor ping con el resto: ${target.score} ms${own !== null ? ` (el tuyo: ${own} ms)` : ''}` : '';
+        if (better && suggested !== target.peerId) {
+            suggested = target.peerId;
+            diag.log(`sugerencia: ${target.peerId.slice(0, 6)} sería mejor anfitrión (peor ping ${target.score} ms; este, ${own} ms)`);
+            showToast(`${name} tiene mejor conexión con todos (peor ping ${target.score} ms; el tuyo, ${own} ms). `
+                + 'Con ESC aparece el botón para pasarle la partida.', 10000);
+        }
+    };
+    setInterval(refresh, 5000);
+    refresh();
+    btn.onclick = async () => {
+        if (!target || migrating) return;
+        if (!armed) {
+            btn.textContent = '¿Seguro? Se reinicia la ronda';
+            armed = window.setTimeout(() => {
+                armed = 0;
+                refresh();
+            }, 5000);
+            return;
+        }
+        clearTimeout(armed);
+        migrating = true;
+        const to = target;
+        setLoading('Pasando la partida', `${to.name || 'Otro jugador'} pasa a ser el anfitrión…`);
+        // los que no reciban el aviso ven que este anfitrión se fue y migran solos
+        await Promise.race([room.handoff(to.peerId).catch(() => undefined), new Promise(r => setTimeout(r, 3000))]);
+        // un instante para que el aviso llegue a todos antes de cerrar la sala
+        setTimeout(() => reloadAsGuest(code, epoch, successors(room.roster(), null).length), 1000);
+    };
 }
 
 // Página recién recargada por una migración: el sucesor levanta el servidor si nadie lo hizo
@@ -434,21 +519,40 @@ async function joinGame(guest: GuestRoom, waitMs = 30000) {
     clearError();
     lobby.hidden = true;
     setLoading('Preparando la conexión…');
-    await prepareNetwork();
-    // si todavía no apareció el anfitrión, se vuelve a buscar ahora que (quizás) hay IPs reales
-    await guest.rejoin();
+    const unlocked = await prepareNetwork();
     setLoading('Buscando la partida…');
+    // si el anfitrión no aparece, se lo vuelve a buscar ahora que hay IPs reales
+    if (unlocked) await guest.rejoinIfSilent();
     guest.onHostLost = () => {
         if (isPlaying()) beginMigration(guest);
     };
+    guest.onHandoff = (to) => beginMigration(guest, to);
     const info = await guest.waitHost(waitMs);
+    // aviso (una vez por vez) si el anfitrión tiene el juego en segundo plano: su pestaña sirve la
+    // partida de todos
+    let awayNotified = false;
+    const onInfo = guest.onInfo;
+    guest.onInfo = (i) => {
+        onInfo?.(i);
+        if (!i.away) awayNotified = false;
+        else if (!awayNotified && isPlaying()) {
+            awayNotified = true;
+            showToast('El anfitrión tiene el juego en segundo plano: puede haber lag', 6000);
+        }
+    };
+    // ¿ya está guardado el paquete de este anfitrión? (se guardan varios)
+    const saved = await findPack(info.pack.version);
+    if (saved) {
+        meta = saved;
+        await usePack(saved);
+    }
     // el enjambre también sirve a otros jugadores cuando este ya tiene los archivos
     const swarm = new Swarm(guest.signaling, () => meta);
     setLoading('Conectando con el anfitrión…');
     const how = await guest.connect(30000);
     showToast(`Conectado con el anfitrión (${how})`, 5000);
 
-    if (meta?.version !== info.pack.version) {
+    if (!saved) {
         if (how.includes('TURN')) {
             showToast(`Conexión por relay: la primera descarga (~${mb(info.pack.size)}) usa el cupo compartido y puede tardar más`, 9000);
         }
@@ -469,8 +573,10 @@ async function joinGame(guest: GuestRoom, waitMs = 30000) {
             await swarm.download(info.pack.version, info.pack.size, guest.hostPeerId!, writer,
                 (received, n) => progress(received, n > 1 ? ` · ${n} fuentes` : ''));
         } catch (e) {
-            // sin enjambre (anfitrión viejo, sin fuentes, se frenó): descarga directa del anfitrión
-            diag.log(`enjambre no disponible (${(e as Error).message}): descarga directa del anfitrión`);
+            // sin enjambre (anfitrión viejo, sin fuentes, se frenó): descarga directa del anfitrión.
+            // Otros errores (por ejemplo, sin espacio para guardar) no se arreglan reintentando.
+            if (!(e instanceof SwarmUnavailable)) throw e;
+            diag.log(`enjambre no disponible (${e.message}): descarga directa del anfitrión`);
             writer = new PackWriter(info.pack.version);
             await guest.download(info.pack.size, async (chunk, received) => {
                 writer.push(chunk);
@@ -485,11 +591,12 @@ async function joinGame(guest: GuestRoom, waitMs = 30000) {
 
     // con los archivos guardados este jugador puede tomar la partida si el anfitrión se cae
     // (no desde celulares ni con controles táctiles)
-    guest.sendCaps({ name, canHost: !touch && !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) });
+    guest.startReporting({ name, canHost: !touch && !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) });
 
     const x = new Xash3DP2P(engineOptions(canvas), false);
     (window as unknown as { xash: Xash3DP2P }).xash = x;
     x.setHostChannel(guest.game!);
+    if (!meta) throw new Error('No hay archivos del juego guardados');
     await loadEngine(x, meta);
     releaseMic();
 
@@ -522,7 +629,7 @@ async function init() {
     }
     meta = await getMeta();
     window.addEventListener('hashchange', () => location.reload());
-    showNetCheck();
+    logNetCheck();
     const code = normalizeCode(decodeURIComponent(location.hash.slice(1)));
     if (code) {
         await iceReady; // la sala de Trystero necesita los servidores ICE desde el primer momento

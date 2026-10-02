@@ -4,6 +4,7 @@
 // página y el sucesor levanta el servidor en la misma sala. Los demás se vuelven a conectar solos.
 // Se pierde la ronda y el marcador, no el grupo ni el mapa.
 import type { GameInfo, RosterEntry } from './room';
+import { SCORE_STEP_MS } from './quality';
 
 const KEY = 'csweb:migration';
 const MAX_AGE_MS = 2 * 60_000;
@@ -27,23 +28,40 @@ export type Migration = {
     at: number;
 };
 
-// Quiénes pueden tomar la partida, en orden de prioridad (el que entró antes primero)
-export function successors(roster: RosterEntry[], lostPeer: string | null): RosterEntry[] {
+// Quiénes pueden tomar la partida, en orden de prioridad: el de mejor conexión con los demás
+// invitados (sin contar al anfitrión que se va; por franjas de ping, así una medición que oscila
+// no reordena la lista) y, a la par, el que entró antes.
+// `prefer`: el jugador al que el anfitrión le pasó la partida va primero.
+export function successors(roster: RosterEntry[], lostPeer: string | null, prefer: string | null = null): RosterEntry[] {
+    const band = (p: RosterEntry) => {
+        if (p.peerId === prefer) return -1;
+        return Number.isFinite(p.scoreNoHost) ? Math.floor(Number(p.scoreNoHost) / SCORE_STEP_MS) : 1e9;
+    };
     return roster
         .filter(p => p.canHost && p.peerId !== lostPeer)
-        .sort((a, b) => a.seq - b.seq || (a.peerId < b.peerId ? -1 : 1));
+        .sort((a, b) => band(a) - band(b) || a.seq - b.seq || (a.peerId < b.peerId ? -1 : 1));
 }
 
-export function planMigration(code: string, info: GameInfo, lostPeer: string | null, me: string): Migration {
-    const list = successors(info.roster ?? [], lostPeer);
+export function planMigration(code: string, info: GameInfo, lostPeer: string | null, me: string, prefer: string | null = null): Migration {
+    const list = successors(info.roster ?? [], lostPeer, prefer);
     return {
         code,
         lostEpoch: info.epoch ?? 1,
         excludePeer: lostPeer,
         slot: list.findIndex(p => p.peerId === me),
         candidates: list.length,
-        settings: { map: info.map, maxPlayers: info.maxPlayers, hostname: info.hostname },
+        settings: safeSettings(info),
         at: Date.now(),
+    };
+}
+
+// Los ajustes vienen del anfitrión anterior y terminan en comandos de consola del motor
+function safeSettings(info: GameInfo): Migration['settings'] {
+    const map = String(info.map ?? '');
+    return {
+        map: /^[\w.-]{1,64}$/.test(map) ? map : 'de_dust2',
+        maxPlayers: Math.min(32, Math.max(2, Math.round(Number(info.maxPlayers)) || 10)),
+        hostname: String(info.hostname ?? '').slice(0, 63) || 'CS 1.6',
     };
 }
 
