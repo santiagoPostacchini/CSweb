@@ -1,6 +1,10 @@
 # Direcciones visuales para CSweb
 
-Etapa 2 de [`docs/agente-diseno-ui.md`](../agente-diseno-ui.md). Se apoya en [`inspiracion.md`](inspiracion.md).
+Etapas 2 y 3 de [`docs/agente-diseno-ui.md`](../agente-diseno-ui.md). Se apoya en [`inspiracion.md`](inspiracion.md).
+
+> **Decisión (2/10/2026): se eligió la A (Steam 2003 / VGUI), en su versión v2.** Está aplicada en `client/style.css` y en los dos
+> `index.html`. La B y la C quedan en este documento y en sus maquetas (`maqueta-flyer-lan.html`, `maqueta-terminal.html`) como
+> registro de lo que se probó; ya no hay código de esas pieles. Pendiente: el logo definitivo (ver "Logo").
 
 **Qué hay para mirar.** Cada dirección tiene una maqueta HTML autocontenida (se abre con doble clic, no pide
 internet) y capturas a 1440 px y a 390 px de ancho:
@@ -92,19 +96,6 @@ tipografía son los del original.
 VGUI no existen los botones rellenos. Si en las pruebas no se encuentra a la primera, se le puede dar más peso sin romper
 el estilo (fondo un tono más claro y texto algo mayor).
 
-## Logo
-
-El logo anterior (un círculo con cuatro marcas) era genérico. Hay **cuatro propuestas propias** en
-[`logos.html`](logos.html) ([captura](capturas/logos.png)), dibujadas con rectángulos sobre una grilla de 64 px: una
-ventana VGUI con la mira verde de CS 1.6 (**1**), una etiqueta de clan `[CS]` con el 1.6 en píxeles (**2**), un bloque con
-display de siete segmentos que marca 1.6 (**3**) y un monitor de tubo con la mira (**4**). Ninguna usa el logo, el arte ni la
-tipografía de Valve; la mira verde de cuatro barras es la mira por defecto del juego, no una marca.
-
-Por ahora está puesta la **1**, para verla en contexto; cambiar de logo es reemplazar el `<svg>` del `<header>` en los dos
-`index.html`, el favicon (enlace `rel="icon"`) y `client/p2p/public/icon.svg`.
-
----
-
 ## B · Flyer de LAN party
 
 > **Un afiche fotocopiado pegado en la pared del cyber: cinta de peligro, titular enorme y sombras duras.**
@@ -185,7 +176,7 @@ celular). El cursor parpadeante es lo único que se anima y se apaga con `prefer
 | Texto cómodo en celular | bueno | bueno | justo |
 | Riesgo de cansar | bajo | medio | bajo |
 
-## Mi recomendación (opinión, no es la decisión)
+## Mi recomendación (hecha antes de decidir)
 
 Partir de **A** como base: es la que mejor conecta con quien jugó CS 1.6, no pesa nada y pasa todos los
 contrastes. Hay dos mezclas que funcionan bien:
@@ -194,60 +185,63 @@ contrastes. Hay dos mezclas que funcionan bien:
 - **A + C**: ventanas VGUI, pero con la tabla de datos de la partida en monoespaciada (como el contador de
   jugadores de GameTracker) y las esquinas de mira solo en el cartel de invitación.
 
-La decisión es tuya; hasta que elijas no toco `client/style.css` ni los `index.html`.
+La decisión fue la A (ver arriba).
 
 ---
 
-## Prueba de A y B en las páginas reales (etapa 3, a medias)
+## Logo
 
-Pediste probar **A y B** para ver cuál gusta más, así que las dos están implementadas en la rama `diseno-ui` y se
-eligen con un parámetro de la URL. Todavía no se descartó ninguna.
+El logo anterior (un círculo con cuatro marcas) era genérico. Hay **cuatro propuestas propias** en
+[`logos.html`](logos.html) ([captura](capturas/logos.png)), dibujadas con rectángulos sobre una grilla de 64 px: una
+ventana VGUI con la mira verde de CS 1.6 (**1**), una etiqueta de clan `[CS]` con el 1.6 en píxeles (**2**), un bloque con
+display de siete segmentos que marca 1.6 (**3**) y un monitor de tubo con la mira (**4**). Ninguna usa el logo, el arte ni la
+tipografía de Valve; la mira verde de cuatro barras es la mira por defecto del juego, no una marca.
 
-**Cómo verlas**
+Por ahora está puesta la **1**, para verla en contexto; cambiar de logo es reemplazar el `<svg>` del `<header>` en los dos
+`index.html`, el favicon (enlace `rel="icon"`) y `client/p2p/public/icon.svg`.
 
-```bash
-npm run dev:pages
-```
+## Implementación (etapa 3)
 
-- <http://localhost:5173/?tema=a> → Steam 2003 / VGUI (la que se ve por defecto)
-- <http://localhost:5173/?tema=b> → Flyer de LAN party
+Se probaron A y B en las páginas reales con un selector `?tema=a|b`. Con la decisión por la A, ese selector, la piel B y la
+fuente Anton se borraron (siguen en el historial de git, en el commit `4c662b8`). Lo que quedó:
 
-El tema elegido se recuerda en ese navegador (`localStorage`, clave `csweb:tema`). Funciona también con un link de
-partida: `…/?tema=b#K7Q2MX`. La página LAN (`client/index.html`) usa los mismos dos temas. `?perfil=nombre` sigue
-separando el almacenamiento entre pestañas.
-
-**Qué cambió en el código**
-
-| Archivo | Cambio |
+| Archivo | Qué hay |
 |---|---|
-| `client/style.css` | Ahora es solo la **estructura** (tamaños, posiciones, estados) y usa variables. Importa las dos pieles. |
-| `client/skin-a.css`, `client/skin-b.css` | Una piel cada una, anidadas bajo `html:not([data-tema="b"])` y `html[data-tema="b"]` (CSS anidado; Vite lo aplana al construir). |
-| `client/fonts/anton-latin.woff2` y `anton-OFL.txt` | Anton, subconjunto latino, 18,6 KB, licencia OFL 1.1, bajada de Google Fonts y servida desde el repo. Va en `client/fonts/` y no en `client/p2p/public/` porque la hoja la comparten las dos páginas. |
-| `client/index.html`, `client/p2p/index.html` | Un `<script>` en el `<head>` que lee `?tema=`, fija `data-tema` en `<html>` y ajusta `theme-color`. El logo nuevo (en el `<header>` y en el favicon). En el inicio de `client/p2p/index.html`, dos `<fieldset class="group">` con `<legend>` (la A los dibuja como grupos de VGUI; la B los acomoda como antes). Los `id`, las clases y los `hidden` que usa TypeScript no se tocaron. |
-| `client/p2p/public/icon.svg` y `manifest.webmanifest` | El ícono de la app instalada es el logo nuevo; `theme_color` y `background_color` pasan a `#3e4637`. |
+| `client/style.css` | Una sola hoja: los tokens en `:root`, la estructura (tamaños, posiciones, estados) y el aspecto de la A. 12 KB, 3,3 KB comprimido. Ninguna fuente, ninguna imagen: los íconos de la barra de título y de la casilla son SVG en línea dentro del CSS. |
+| `client/index.html`, `client/p2p/index.html` | El logo nuevo en el `<header>` y en el favicon, y `theme-color` `#3e4637`. En el inicio de `client/p2p/index.html`, dos `<fieldset class="group">` con su `<legend>`. Los `id`, las clases y los `hidden` que usa TypeScript no se tocaron. |
+| `client/p2p/public/icon.svg`, `manifest.webmanifest` | El ícono de la app instalada es el logo nuevo; `theme_color` y `background_color` pasan a `#3e4637`. |
 | TypeScript | **Ningún cambio.** `main.ts` sigue importando `style.css`. |
+
+Se hicieron además dos arreglos de estructura que no dependen del estilo: el cartel de invitación y el toast usan
+`width: max-content` (antes se partían en varias líneas en pantallas angostas) y los `<summary>` miden 40 px.
+
+![Antes y después de cada pantalla](capturas/antes-despues.png)
 
 **Qué verifiqué**
 
 - `npx tsc -p tsconfig.json`, `npm run build:pages` y `npm run build` terminan sin errores.
-- En `npm run dev:pages` y en el bundle de producción (`preview:pages`): carga la piel A y la B, Anton se descarga y se
-  aplica, y no hay errores en consola.
-- Forcé cada estado desde la consola (inicio, unirse desde un link, carga determinada e indeterminada, error con
-  aviso y diagnóstico, opciones abiertas, y juego con cartel de invitación y toast) en las dos pieles. La página LAN
-  la miré en las dos pieles.
-- A 360 px de ancho, en las dos pieles y en los cinco estados: `scrollWidth` = ancho de la ventana (sin scroll
-  horizontal), ningún elemento se sale de pantalla, y botones, campos, filas de casilla y `<summary>` miden 40 px o más.
+- En `npm run dev:pages`: la página carga sin errores propios en la consola (los `beforeunload` que aparecen son del bloqueo de
+  atajos que ya existía). Forcé desde la consola cada estado (inicio, unirse desde un link, carga, error con aviso y
+  diagnóstico, opciones abiertas, juego con cartel y toast) y los medí en la página real; para verlos con detalle los fotografié en
+  una maqueta armada con el mismo CSS (`maqueta-vgui.html`).
+- A 360 px de ancho, en los cinco estados: `scrollWidth` = ancho de la ventana (sin scroll horizontal), ningún elemento se sale
+  de pantalla y botones, campos, filas de casilla y `<summary>` miden 40 px o más.
+- Al unir la estructura y la piel en una sola hoja comparé los estilos calculados de 297 elementos antes y después: son
+  idénticos salvo el relleno horizontal del botón junto al campo de código (de 14 a 16 px).
 
-**Qué NO verifiqué** (hace falta que lo hagas vos)
+**Qué NO verifiqué**
 
-- **Un recorrido real de crear una partida o unirse.** No tengo los archivos del juego (no existe la carpeta
-  `steamapps/`) ni un segundo jugador. Lo que sí confirmé es que no se tocó ningún `id`, clase ni atributo `hidden`
-  que use el código.
-- Firefox y Safari. Probé en el navegador de la app (Chromium). El CSS anidado se aplana al construir para
-  `build:pages`, pero en `dev:pages` lo interpreta el navegador tal cual.
-- Una partida con el canvas del juego a pantalla completa: el cartel y el toast se ven bien sobre un fondo negro,
-  pero no sobre imagen real del juego.
+- **Un recorrido real de crear una partida o unirse.** No tengo los archivos del juego (no existe la carpeta `steamapps/`) ni un
+  segundo jugador. Hace falta que lo pruebes vos.
+- **La comparación contra una captura del menú real de CS 1.6.** La A se ajustó a dos réplicas fieles (vgui.css y cs16.css), no al
+  juego en sí.
+- Firefox y Safari: se miró en Chromium. Ya no se usa CSS anidado, así que no debería haber diferencias, pero no lo comprobé.
+- El cartel y el toast sobre imagen real del juego (se ven bien sobre un fondo liso).
 
-**Cuando elijas**, hay que borrar la piel descartada, desanidar la elegida, sacar el script de `?tema=` de los dos
-`<head>` y actualizar `theme_color`/`background_color` de `client/p2p/public/manifest.webmanifest` y el
-`icon.svg` (hoy sigue con el naranja anterior) al acento ganador.
+## Pendientes
+
+- **Logo.** Está puesta la propuesta 1 (ventana con mira), pero el logo no es definitivo.
+- **Botones de ventana de la barra de título.** Son decorativos (no hacen nada). Si molestan, se quitan con una línea del CSS
+  (el segundo `url(...)` del `background` de `.panel::before`).
+- **Peso del botón principal.** Con el estilo VGUI (aro negro y texto amarillo) tiene menos presencia que un botón relleno. Si en las
+  pruebas con compañeros no se encuentra a la primera, se le da más peso sin salir del estilo.

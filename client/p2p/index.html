@@ -9,20 +9,6 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg%20viewBox%3D%270%200%2064%2064%27%20shape-rendering%3D%27crispEdges%27%20role%3D%27img%27%20aria-label%3D%27Ventana%20con%20mira%27%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%3E%3Crect%20x%3D%272%27%20y%3D%276%27%20width%3D%2760%27%20height%3D%2752%27%20fill%3D%27%234c5844%27%2F%3E%3Crect%20x%3D%272%27%20y%3D%276%27%20width%3D%2760%27%20height%3D%272%27%20fill%3D%27%23a9b19c%27%2F%3E%3Crect%20x%3D%272%27%20y%3D%276%27%20width%3D%272%27%20height%3D%2752%27%20fill%3D%27%23a9b19c%27%2F%3E%3Crect%20x%3D%2760%27%20y%3D%278%27%20width%3D%272%27%20height%3D%2750%27%20fill%3D%27%231a1d16%27%2F%3E%3Crect%20x%3D%274%27%20y%3D%2756%27%20width%3D%2758%27%20height%3D%272%27%20fill%3D%27%231a1d16%27%2F%3E%3Crect%20x%3D%276%27%20y%3D%2710%27%20width%3D%2752%27%20height%3D%278%27%20fill%3D%27%2339412f%27%2F%3E%3Crect%20x%3D%278%27%20y%3D%2712%27%20width%3D%2714%27%20height%3D%274%27%20fill%3D%27%23c4b550%27%2F%3E%3Crect%20x%3D%2744%27%20y%3D%2712%27%20width%3D%275%27%20height%3D%274%27%20fill%3D%27%23a9b19c%27%2F%3E%3Crect%20x%3D%2751%27%20y%3D%2712%27%20width%3D%275%27%20height%3D%274%27%20fill%3D%27%23a9b19c%27%2F%3E%3Crect%20x%3D%276%27%20y%3D%2722%27%20width%3D%2752%27%20height%3D%2732%27%20fill%3D%27%23232a1f%27%2F%3E%3Crect%20x%3D%276%27%20y%3D%2722%27%20width%3D%2752%27%20height%3D%271%27%20fill%3D%27%231a1d16%27%2F%3E%3Crect%20x%3D%276%27%20y%3D%2722%27%20width%3D%271%27%20height%3D%2732%27%20fill%3D%27%231a1d16%27%2F%3E%3Crect%20x%3D%2718%27%20y%3D%2736.5%27%20width%3D%2710%27%20height%3D%273%27%20fill%3D%27%233ef03e%27%2F%3E%3Crect%20x%3D%2736%27%20y%3D%2736.5%27%20width%3D%2710%27%20height%3D%273%27%20fill%3D%27%233ef03e%27%2F%3E%3Crect%20x%3D%2730.5%27%20y%3D%2724%27%20width%3D%273%27%20height%3D%2710%27%20fill%3D%27%233ef03e%27%2F%3E%3Crect%20x%3D%2730.5%27%20y%3D%2742%27%20width%3D%273%27%20height%3D%2710%27%20fill%3D%27%233ef03e%27%2F%3E%3C%2Fsvg%3E">
     <!-- instalada como app (Chrome/Edge), la página puede bloquear Ctrl+W también en ventana -->
     <link rel="manifest" href="/manifest.webmanifest">
-    <!-- Prueba de diseño: ?tema=a o ?tema=b elige la piel y se recuerda en este navegador. Al elegir una, se borra esto y la otra piel (ver docs/diseno/direcciones.md). -->
-    <script>
-        (() => {
-            const colores = { a: '#3e4637', b: '#0c0c0a' };
-            let tema = new URLSearchParams(location.search).get('tema');
-            try {
-                if (Object.hasOwn(colores, tema)) localStorage.setItem('csweb:tema', tema);
-                else tema = localStorage.getItem('csweb:tema');
-            } catch { /* sin almacenamiento: se usa la piel A */ }
-            if (!Object.hasOwn(colores, tema)) tema = 'a';
-            document.documentElement.dataset.tema = tema;
-            document.querySelector('meta[name=theme-color]').content = colores[tema];
-        })();
-    </script>
     <script type="module" src="./main.ts"></script>
 </head>
 <body>

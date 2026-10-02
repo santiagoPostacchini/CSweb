@@ -1,9 +1,30 @@
-/* Estructura común de la interfaz (diseño, tamaños, estados). Los colores, bordes, tipografías y adornos
-   salen de la "piel" que se cargue después (skin-a.css o skin-b.css), que define las variables --bg, --panel,
-   --text, --muted, --accent, --accent-ink, --ok, --err, --inset, --font, --fs, --pad y --panel-w. */
-@import "./skin-a.css";
-@import "./skin-b.css";
+/* Interfaz de CSweb: piel "Steam 2003 / VGUI". Réplica del menú de CS 1.6 y del Steam de 2003: ventanas planas de verde oliva,
+   bisel de 1 px, sin sombras, barra de título con ícono, grupos con leyenda y listas hundidas. Las medidas salen de vgui.css y
+   cs16.css (ver docs/diseno/direcciones.md). Arriba, los tokens; después, la estructura; al final, el aspecto. */
 
+:root {
+    --bg: #3e4637;
+    --panel: #4c5844;
+    --inset: #3e4637;
+    --hi: #a9b19c;
+    --lo: #292d23;
+    --text: #d8ded3;
+    --muted: #cbd2c0;
+    --accent: #c4b550;
+    --accent-t: #e0d366;
+    --accent-ink: #1b1d0e;
+    --ok: #9be08a;
+    --err: #ff9a82;
+    --focus: #ffffff;
+    --font: "Trebuchet MS", Verdana, Tahoma, sans-serif;
+    --mono: "Lucida Console", Consolas, ui-monospace, monospace;
+    --fs: 14px;
+    --pad: 14px;
+    --panel-w: 440px;
+    color-scheme: dark;
+}
+
+/* ---- estructura (tamaños, posiciones y estados) ---- */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
@@ -106,4 +127,151 @@ form.inline button { margin-top: 0; padding-inline: 16px; }
     .grid2 { grid-template-columns: 1fr; }
     #invite code { display: none; }
     #invite { flex-wrap: wrap; justify-content: center; gap: 6px 8px; }
+}
+
+/* ---- aspecto ---- */
+body { background: var(--bg); }
+body.playing { background: #000; }
+
+/* ventana: bisel de 1 px, sin sombra; el título queda fijo arriba aunque el contenido tenga scroll */
+.panel {
+    scrollbar-width: thin;
+    scrollbar-color: var(--hi) var(--inset);
+    background: var(--panel);
+    border: 1px solid;
+    border-color: var(--hi) var(--lo) var(--lo) var(--hi);
+    box-shadow: 0 0 0 1px #14170f;
+}
+.panel::before {
+    content: "Counter-Strike 1.6";
+    position: sticky;
+    top: calc(var(--pad) * -1);
+    z-index: 1;
+    display: block;
+    margin: calc(var(--pad) * -1) calc(var(--pad) * -1) var(--pad);
+    padding: 6px 54px 6px 32px;
+    background:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 64 64' shape-rendering='crispEdges' role='img' aria-label='Ventana con mira'%3E%3Crect x='2' y='6' width='60' height='52' fill='%234c5844'/%3E%3Crect x='2' y='6' width='60' height='2' fill='%23a9b19c'/%3E%3Crect x='2' y='6' width='2' height='52' fill='%23a9b19c'/%3E%3Crect x='60' y='8' width='2' height='50' fill='%231a1d16'/%3E%3Crect x='4' y='56' width='58' height='2' fill='%231a1d16'/%3E%3Crect x='6' y='10' width='52' height='8' fill='%2339412f'/%3E%3Crect x='8' y='12' width='14' height='4' fill='%23c4b550'/%3E%3Crect x='44' y='12' width='5' height='4' fill='%23a9b19c'/%3E%3Crect x='51' y='12' width='5' height='4' fill='%23a9b19c'/%3E%3Crect x='6' y='22' width='52' height='32' fill='%23232a1f'/%3E%3Crect x='6' y='22' width='52' height='1' fill='%231a1d16'/%3E%3Crect x='6' y='22' width='1' height='32' fill='%231a1d16'/%3E%3Crect x='18' y='36.5' width='10' height='3' fill='%233ef03e'/%3E%3Crect x='36' y='36.5' width='10' height='3' fill='%233ef03e'/%3E%3Crect x='30.5' y='24' width='3' height='10' fill='%233ef03e'/%3E%3Crect x='30.5' y='42' width='3' height='10' fill='%233ef03e'/%3E%3C/svg%3E") 9px 50% / 16px 16px no-repeat,
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='42' height='18'%3E%3Cg transform='translate(0 0)'%3E%3Crect width='18' height='18' fill='%234c5844'/%3E%3Crect width='18' height='1' fill='%23a9b19c'/%3E%3Crect width='1' height='18' fill='%23a9b19c'/%3E%3Crect x='17' width='1' height='18' fill='%23292d23'/%3E%3Crect y='17' width='18' height='1' fill='%23292d23'/%3E%3Crect x='4' y='12' width='9' height='2' fill='%23fff'/%3E%3C/g%3E%3Cg transform='translate(24 0)'%3E%3Crect width='18' height='18' fill='%234c5844'/%3E%3Crect width='18' height='1' fill='%23a9b19c'/%3E%3Crect width='1' height='18' fill='%23a9b19c'/%3E%3Crect x='17' width='1' height='18' fill='%23292d23'/%3E%3Crect y='17' width='18' height='1' fill='%23292d23'/%3E%3Cpath d='M5 5l8 8M13 5l-8 8' stroke='%23fff' stroke-width='2' fill='none'/%3E%3C/g%3E%3C/svg%3E") right 6px center / 42px 18px no-repeat,
+        var(--panel);
+    color: #fff;
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#loading::before { content: "Cargando"; }
+
+header { margin-bottom: 12px; padding-bottom: 12px; gap: 12px; border-bottom: 1px solid var(--lo); box-shadow: 0 1px 0 var(--hi); }
+.logo svg { width: 44px; height: 44px; image-rendering: pixelated; }
+h1 { font-size: 19px; font-weight: 700; letter-spacing: 0; color: var(--accent); }
+.sub { color: var(--muted); font-size: 12px; }
+
+label { color: var(--text); font-size: 13px; }
+code { font: 12px var(--mono); word-break: break-all; }
+
+/* grupos con leyenda: borde hundido de 1 px, como un "group box" de VGUI */
+fieldset.group { margin: 0 0 10px; padding: 6px 10px 10px; min-width: 0; border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+legend { padding: 0 4px; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+fieldset.group > :last-child { margin-bottom: 0; }
+.divider { display: none; }
+
+/* campos y listas: fondo del escritorio, borde hundido */
+input:not([type=checkbox]), select {
+    padding: 6px 8px; color: var(--text); background: var(--inset); border-radius: 0;
+    border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+}
+input::placeholder { color: #a9b39b; }
+input:focus, select:focus { outline: 2px dotted var(--focus); outline-offset: 1px; }
+form.inline input { letter-spacing: 1px; }
+
+input[type=checkbox] {
+    width: 16px; height: 16px; background: var(--inset);
+    border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+}
+input[type=checkbox]:checked { background: var(--inset) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Cpath d='M3 8l3 3 7-7' stroke='%23fff' stroke-width='2' fill='none'/%3E%3C/svg%3E") center / 100% no-repeat; }
+input[type=checkbox]:focus-visible { outline: 2px dotted var(--focus); outline-offset: 2px; }
+label.check { font-size: 13px; gap: 8px; }
+
+/* botones: del color de la ventana, con bisel de 1 px y texto blanco; el principal es el "botón por defecto" (aro negro y texto amarillo) */
+button, .btn-secondary {
+    padding: 6px 14px; color: #fff; background: var(--panel); border-radius: 0;
+    font: 700 13px/1.2 var(--font);
+    border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi);
+}
+button:hover, .btn-secondary:hover { background: #596750; }
+button:active, .btn-secondary:active { border-color: var(--lo) var(--hi) var(--hi) var(--lo); padding: 7px 13px 5px 15px; }
+button:focus-visible, label.btn-secondary:focus-within { outline: 2px dotted var(--focus); outline-offset: 2px; }
+#host-btn, #join-view > button, form.inline button, #invite-copy, #play {
+    color: var(--accent-t); box-shadow: 0 0 0 1px #000; font-size: 14px;
+}
+#host-btn, #join-view > button, #play { padding-block: 9px; }
+/* deshabilitado: texto "grabado", como en el original (los selectores con id repiten los de los botones principales para ganarles) */
+button:disabled, #host-btn:disabled, #join-view > button:disabled, #play:disabled, form.inline button:disabled {
+    opacity: 1; color: #2f3529; text-shadow: 1px 1px 0 #75806f; box-shadow: none; background: var(--panel);
+}
+button:disabled:hover { background: var(--panel); }
+
+.hint { color: var(--muted); font-size: 12px; }
+.hint a, .note a { color: var(--accent-t); }
+
+.server, .files {
+    margin-bottom: 10px; padding: 8px 10px; background: var(--inset); border-radius: 0;
+    border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+}
+fieldset.group > .files { margin-bottom: 10px; }
+.server .row span, .files .row span { color: var(--muted); font-size: 12px; }
+.server .row strong { color: var(--accent-t); font-weight: 700; }
+.files .row { align-items: baseline; }
+#files-status { color: #fff; }
+#files-status.ok { color: var(--ok); }
+
+.note { color: var(--text); background: #56644c; padding: 7px 10px; font-size: 12px; border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+.error { color: var(--err); background: var(--inset); padding: 7px 10px; border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+.error::before { content: "ERROR · "; font-weight: 700; }
+
+.help, .advanced, .diag { color: var(--muted); font-size: 12px; }
+summary { color: #fff; font-weight: 700; }
+/* expansor de árbol: cuadradito con + o –, como en las listas de VGUI */
+summary::before {
+    content: "+"; flex: none; width: 13px; height: 13px; margin-right: 8px;
+    font: 700 12px/11px var(--mono); text-align: center; color: #fff; background: var(--inset);
+    border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+}
+details[open] > summary::before { content: "–"; }
+.advanced { margin: 2px 0; }
+kbd { padding: 0 5px; font: 700 11px var(--mono); color: #fff; background: var(--panel); border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+.diag pre { padding: 8px; font: 12px/1.4 var(--mono); color: var(--text); background: var(--inset); border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+
+/* carga: ventana chica con barra de bloques (8 px + 2 px de aire), como la de Steam */
+#loading { width: min(380px, calc(100vw - 32px)); }
+#loading-text { font-weight: 700; color: #fff; }
+.progress { height: 24px; padding: 3px; background: var(--inset); border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+#bar { background: repeating-linear-gradient(90deg, var(--accent) 0 8px, transparent 8px 10px); }
+
+/* toast y cartel de invitación: cuadros biselados del color de la ventana */
+#toast {
+    padding: 8px 12px; color: var(--text); background: var(--panel); font-size: 13px; border-radius: 0;
+    border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 0 0 0 1px #000;
+}
+#invite {
+    padding: 4px 4px 4px 10px; background: var(--panel); font-size: 13px; border-radius: 0;
+    border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 0 0 0 1px #000;
+}
+#invite code { color: var(--accent-t); }
+#invite button { padding: 5px 12px; font-size: 13px; }
+#invite #invite-handoff { color: #fff; box-shadow: none; }
+#invite #invite-handoff.suggested { color: var(--accent-t); box-shadow: 0 0 0 1px #000; }
+
+@media (pointer: coarse) {
+    :root { --fs: 15px; }
+    button, .btn-secondary, input:not([type=checkbox]), select, #invite button { min-height: 44px; }
+}
+@media (max-width: 480px) {
+    :root { --pad: 12px; }
+    .panel::before { letter-spacing: 1px; }
 }
