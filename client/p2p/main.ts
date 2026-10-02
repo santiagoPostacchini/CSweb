@@ -80,10 +80,22 @@ onEngineQuit(() => {
     allowUnload();
     location.reload();
 });
+// El reloj cuenta desde que se entra al juego: si la pestaña estuvo oculta mientras cargaba, el
+// último frame es viejo aunque el motor recién arranque
+let playingSince = 0;
 setInterval(() => {
-    if (isPlaying() && performance.now() - lastFrameAt() > 8000) stopForEngine('dejó de dar frames');
+    if (!isPlaying()) {
+        playingSince = 0;
+        return;
+    }
+    playingSince ||= performance.now();
+    if (performance.now() - Math.max(lastFrameAt(), playingSince) > 8000) stopForEngine('dejó de dar frames');
 }, 2000);
-window.addEventListener('error', (e) => diag.log(`error de la página: ${e.message}`));
+window.addEventListener('error', (e) => {
+    // la pila dice en qué función del motor (wasm-function[N]) falló
+    const stack = e.error instanceof Error && e.error.stack ? `\n${e.error.stack.split('\n').slice(0, 15).join('\n')}` : '';
+    diag.log(`error de la página: ${e.message}${stack}`);
+});
 
 function clearError() {
     errorBox.hidden = true;

@@ -215,6 +215,7 @@ client/p2p/              página de GitHub Pages: crear/unirse, listen server en
 server-config/           server.cfg base, custom.cfg, mapcycle.txt
 scripts/setup.mjs        prepara runtime/ y el paquete de assets
 vendor/                  binarios probados: motor wasm, cliente CS wasm, dedicado win32, ReGameDLL+YaPB
+                         (el menú wasm va parcheado con scripts/patch-menu-wasm.mjs, ver Créditos)
 runtime/                 generado: servidor dedicado (server/) y valve.zip para la web (web/)
 steamapps/Half-Life/     (opcional) copia de la instalación; si no está se usa la de Steam. Nunca se modifica.
 ```
@@ -227,7 +228,9 @@ con el cliente web).
 
 - [Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs) — motor (GPL).
 - Port WebAssembly del motor y del cliente: paquetes `xash3d-fwgs` / `cs16-client` de webxash3d-fwgs (yohimik, MIT),
-  guardados en `vendor/` porque fueron retirados de npm.
+  guardados en `vendor/` porque fueron retirados de npm. El menú (`menu_emscripten_wasm32.wasm`) está parcheado
+  con `scripts/patch-menu-wasm.mjs`: compartía la variable `gpGlobals` con el cliente y, al cambiar el tamaño de la
+  ventana (por ejemplo al salir de pantalla completa), el juego se colgaba con una división por cero.
 - [CS16Client](https://github.com/Velaron/cs16-client), [ReGameDLL_CS](https://github.com/rehlds/ReGameDLL_CS), [YaPB](https://github.com/yapb/yapb).
 - [node-datachannel](https://github.com/murat-dogan/node-datachannel) (libdatachannel), [fflate](https://github.com/101arrowz/fflate), [Trystero](https://github.com/dmotz/trystero).
 - Counter-Strike y sus assets son propiedad de Valve: se usan los de tu propia instalación.

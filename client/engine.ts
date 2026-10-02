@@ -64,6 +64,8 @@ window.alert = (message?: unknown) => {
 // longjmp del motor que escapó hasta la página (Sys_Quit/Host_Error fuera del frame): estado dudoso
 window.addEventListener('error', (e) => {
     if (e.error === Infinity) engineDied('salto interno del motor sin atrapar (Uncaught Infinity)');
+    // una trampa de wasm (división por cero, acceso fuera de memoria...) corta el frame en curso
+    else if (e.error instanceof WebAssembly.RuntimeError) engineDied(`el motor falló: ${e.error.message}`);
 });
 window.addEventListener('unhandledrejection', (e) => {
     if (e.reason === Infinity) engineDied('salto interno del motor sin atrapar (Uncaught Infinity)');
