@@ -6,7 +6,7 @@
 //     "game":  no confiable y desordenado, se comporta como UDP → tráfico del juego
 //     "files": confiable → paquete de archivos del juego
 import { joinRoom, type MessageAction, type Room } from 'trystero';
-import { candidateType, describePath, diag, rtcConfig, selectedPath, turnServers, type TurnSettings } from './netdiag';
+import { candidateType, describePath, diag, measureRtt, rtcConfig, selectedPath, turnServers, type TurnSettings } from './netdiag';
 
 const APP_ID = 'csweb-cs16-santiagopostacchini-v1';
 // 64 KB por mensaje: con mensajes más grandes Chrome llega a trabar el canal
@@ -128,7 +128,8 @@ class Link {
             await Promise.race([new Promise<void>(r => this.channelWaiters.push(r)), sleep(250)]);
         }
         const path = await selectedPath(this.pc);
-        diag.log(`conectado (${path})`);
+        const rtt = await measureRtt(this.pc);
+        diag.log(`conectado (${path}${rtt != null ? `, RTT ${rtt} ms` : ''})`);
         return describePath(path);
     }
 

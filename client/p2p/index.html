@@ -71,9 +71,9 @@
         <details class="advanced">
             <summary>Opciones de red (avanzado)</summary>
             <p class="hint">
-                Si tus compañeros están en <b>otra red</b> (otra oficina, datos móviles) o la red no deja conectar
-                equipos entre sí, hace falta un servidor <b>TURN</b> que retransmita el tráfico. Alcanza con que lo
-                cargue el anfitrión. Hay planes gratuitos, por ejemplo en metered.ca o Cloudflare.
+                Cuando la conexión directa no es posible (otra oficina, datos móviles, redes que bloquean equipos entre sí)
+                el tráfico se retransmite por un servidor <b>TURN</b> automático: no tenés que hacer nada.
+                Cargá uno propio sólo si querés usar tu servidor (por ejemplo en metered.ca) en lugar del automático.
             </p>
             <label class="field">URL(s) TURN
                 <input id="turn-url" placeholder="turn:servidor:3478, turns:servidor:443?transport=tcp" autocomplete="off">
@@ -110,6 +110,7 @@
         </label>
     </div>
 
+    <p id="net-check" class="hint" hidden></p>
     <p id="lock-hint" class="note" hidden></p>
     <p id="error" class="error" hidden></p>
     <details id="diag" class="diag" hidden>

@@ -9,7 +9,7 @@ import { Xash3DP2P } from './p2pnet';
 import { buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
 import { PackWriter, getMeta, getPackBlob, persistStorage, writeStream, type PackMeta } from './store';
 import { GuestRoom, HostRoom, newRoomCode, normalizeCode, type GameInfo } from './room';
-import { diag, loadTurn, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
+import { checkNetwork, diag, hasAutoRelay, loadTurn, prepareIce, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
 
 const canvas = $<HTMLCanvasElement>('canvas');
 const lobby = $('lobby');
@@ -29,6 +29,18 @@ $('lock-hint').hidden = !lockHint;
 $('lock-hint').innerHTML = lockHint;
 
 let meta: PackMeta | null = null;
+// Credenciales de relay (TURN): se piden apenas abre la página y se esperan antes de crear/unir una sala
+const iceReady = prepareIce();
+
+// Línea informativa con el tipo de red y si hay relay disponible
+function showNetCheck() {
+    const el = $('net-check');
+    Promise.all([checkNetwork(), iceReady]).then(([net]) => {
+        const relay = hasAutoRelay() ? 'relay automático disponible' : 'sin relay automático';
+        el.textContent = `Tu red: ${net.summary} · ${relay}`;
+        el.hidden = false;
+    }).catch(() => undefined);
+}
 
 function showError(msg: string) {
     $('loading').hidden = true;
@@ -179,6 +191,7 @@ async function hostGame() {
     setLoading('Preparando la conexión…');
     // el micrófono queda abierto mientras dura la partida: cada invitado nuevo usa una conexión nueva
     await prepareNetwork();
+    await iceReady;
 
     const x = new Xash3DP2P(engineOptions(canvas), true);
     (window as unknown as { xash: Xash3DP2P }).xash = x;
@@ -335,6 +348,9 @@ async function joinGame(guest: GuestRoom) {
     showToast(`Conectado con el anfitrión (${how})`, 5000);
 
     if (meta?.version !== info.pack.version) {
+        if (how.includes('TURN')) {
+            showToast(`Conexión por relay: la primera descarga (~${mb(info.pack.size)}) usa el cupo compartido y puede tardar más`, 9000);
+        }
         const writer = new PackWriter(info.pack.version);
         const t0 = performance.now();
         let last = 0;
@@ -389,9 +405,12 @@ async function init() {
     }
     meta = await getMeta();
     window.addEventListener('hashchange', () => location.reload());
+    showNetCheck();
     const code = normalizeCode(decodeURIComponent(location.hash.slice(1)));
-    if (code) showJoin(code);
-    else showHome();
+    if (code) {
+        await iceReady; // la sala de Trystero necesita los servidores ICE desde el primer momento
+        showJoin(code);
+    } else showHome();
 }
 
 init().catch(fail);

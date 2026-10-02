@@ -6,4 +6,6 @@
 # Assets de Valve: nunca se suben
 /steamapps/
 /dist-pages/
+/worker/node_modules/
+/worker/.wrangler/
 /.claude/
