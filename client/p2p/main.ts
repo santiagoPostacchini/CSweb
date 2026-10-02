@@ -3,7 +3,7 @@
 // instalación local y se los pasa directo a cada invitado por WebRTC.
 import '../style.css';
 import { lastFrameAt } from '../keepalive';
-import { SERVER_ADDRESS, createFsSink, engineLogTail, engineOptions, fetchExtras, mountExtras, onEngineAbort, playerCommands, quoteCvar, startEngine } from '../engine';
+import { SERVER_ADDRESS, createFsSink, engineLogTail, engineOptions, fetchExtras, mountExtras, onEngineAbort, onEngineQuit, playerCommands, queueCommands, quoteCvar, startEngine } from '../engine';
 import { $, allowUnload, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast } from '../ui';
 import { Xash3DP2P } from './p2pnet';
 import { PackRejected, buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
@@ -70,6 +70,16 @@ function stopForEngine(reason: string) {
         + `si se repite, copiá el diagnóstico y pasalo. (${reason.slice(0, 200)})`);
 }
 onEngineAbort(stopForEngine);
+// "Salir" del menú del juego: el motor ya no se apaga (ver engine.ts), la página confirma y vuelve al inicio
+onEngineQuit(() => {
+    const host = Boolean((window as unknown as { xash?: Xash3DP2P }).xash?.isHost);
+    const msg = host
+        ? '¿Salir de la partida? Sos el anfitrión: la partida pasa a otro jugador (o se termina si estás solo).'
+        : '¿Salir de la partida?';
+    if (!confirm(msg)) return;
+    allowUnload();
+    location.reload();
+});
 setInterval(() => {
     if (isPlaying() && performance.now() - lastFrameAt() > 8000) stopForEngine('dejó de dar frames');
 }, 2000);
@@ -261,15 +271,16 @@ async function runHost({ pack, name, touch, map, maxPlayers, hostname, turn, cod
     setLoading('Iniciando el motor…');
     await startEngine(x);
     enterGame(canvas);
-    playerCommands(x, { name, touch });
-    for (const cmd of [
+    // se ejecutan dentro del primer frame del motor (ver queueCommands)
+    queueCommands(x, [
+        ...playerCommands({ name, touch }),
         'sv_lan 1',
         `hostname ${quoteCvar(hostname)}`,
         `maxplayers ${maxPlayers}`,
         'mp_timelimit 30', 'mp_roundtime 2.5', 'mp_freezetime 3', 'mp_buytime 0.75',
         'mp_autoteambalance 1', 'mp_friendlyfire 0', 'sv_timeout 120', 'sv_allowdownload 0',
         `map ${map}`,
-    ]) x.Cmd_ExecuteString(cmd);
+    ]);
 
     const link = `${location.origin}${location.pathname}#${code}`;
     const info = (): Omit<GameInfo, 'epoch' | 'roster'> => ({
@@ -626,8 +637,7 @@ async function joinGame(guest: GuestRoom, waitMs = 30000) {
     setLoading('Iniciando el motor…');
     await startEngine(x);
     enterGame(canvas);
-    playerCommands(x, { name, touch });
-    x.Cmd_ExecuteString(`connect ${SERVER_ADDRESS}`);
+    queueCommands(x, [...playerCommands({ name, touch }), `connect ${SERVER_ADDRESS}`]);
 }
 
 // ------------------------------------------------------------------ inicio

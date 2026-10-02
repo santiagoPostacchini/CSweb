@@ -1,7 +1,7 @@
 // Transporte de red del motor: reemplaza los sockets UDP por un DataChannel WebRTC
 // no confiable (unordered, sin retransmisiones), que se comporta igual que UDP.
 import { Net, Xash3D, type Packet, type Xash3DOptions } from 'xash3d-fwgs';
-import { SERVER_IP, SERVER_PORT } from './engine';
+import { SERVER_IP, SERVER_PORT, queueCommands } from './engine';
 
 type Signal =
     | { type: 'offer'; sdp: string }
@@ -138,7 +138,7 @@ export class Xash3DWebRTC extends Xash3D {
         try { peer.close(); } catch { /* */ }
         const retry = (delay: number) => setTimeout(() => {
             this.connectTransport()
-                .then(() => this.Cmd_ExecuteString('retry'))
+                .then(() => queueCommands(this, ['retry']))
                 .catch(() => retry(Math.min(delay * 2, 10000)));
         }, delay);
         retry(1000);

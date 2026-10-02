@@ -3,9 +3,9 @@ import './style.css';
 import './keepalive';
 import { Xash3DWebRTC } from './net';
 import { loadAssets } from './assets';
-import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, playerCommands, startEngine } from './engine';
+import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, onEngineQuit, playerCommands, queueCommands, startEngine } from './engine';
 import {
-    $, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast,
+    $, allowUnload, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast,
 } from './ui';
 
 type Status = {
@@ -94,9 +94,15 @@ async function start(name: string, password: string, touch: boolean) {
     setLoading('Iniciando el motor…');
     await startEngine(x);
     enterGame(canvas);
-    playerCommands(x, { name, touch, password });
-    x.Cmd_ExecuteString(`connect ${SERVER_ADDRESS}`);
+    queueCommands(x, [...playerCommands({ name, touch, password }), `connect ${SERVER_ADDRESS}`]);
 }
+
+// "Salir" del menú del juego: el motor ya no se apaga (ver engine.ts), la página confirma y recarga
+onEngineQuit(() => {
+    if (!confirm('¿Salir de la partida?')) return;
+    allowUnload();
+    location.reload();
+});
 
 // ---- lobby ----
 const guards = setupGameGuards(canvas, fullscreenInput);

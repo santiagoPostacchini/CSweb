@@ -56,6 +56,14 @@ const BLOCK_KEYS = new Set(['F1', 'F3', 'F5', 'F6', 'F7', 'BrowserBack', 'Browse
 export function guardShortcuts(isPlaying: () => boolean) {
     window.addEventListener('keydown', (e) => {
         if (!isPlaying()) return;
+        // Para salir de pantalla completa con el bloqueo de teclado hay que MANTENER Esc: el sistema
+        // repite la tecla ~30 veces por segundo y el motor abría y cerraba el menú en ráfaga hasta
+        // trabarse. El motor sólo ve el primer Esc; las repeticiones no le llegan.
+        if (e.key === 'Escape' && e.repeat) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return;
+        }
         // copiar/pegar se deja pasar (sirve en la consola del juego)
         const clipboard = /^[cvx]$/i.test(e.key);
         const combo = ((e.ctrlKey || e.metaKey) && !clipboard) || (e.altKey && e.key.startsWith('Arrow'));
