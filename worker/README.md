@@ -20,9 +20,9 @@ npx wrangler secret put TURN_API_TOKEN
 npx wrangler deploy
 ```
 
-4. `wrangler deploy` imprime la URL (`https://csweb-turn.<tu-subdominio>.workers.dev`).
+4. `wrangler deploy` imprime la URL (`https://asriel.<tu-subdominio>.workers.dev`).
    En GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable**
-   `TURN_ENDPOINT` = `https://csweb-turn.<tu-subdominio>.workers.dev/turn`.
+   `TURN_ENDPOINT` = `https://asriel.<tu-subdominio>.workers.dev/turn`.
 5. Hacer push a `main`: la página se vuelve a publicar con el relay automático.
 
 Si tu página no está en `https://santiagopostacchini.github.io`, cambiá `ALLOWED_ORIGINS` en `wrangler.toml`.
@@ -36,7 +36,7 @@ y `CLOUDFLARE_ACCOUNT_ID`.
 ## Probar
 
 ```bash
-curl -H "Origin: https://santiagopostacchini.github.io" https://csweb-turn.<tu-subdominio>.workers.dev/turn
+curl -H "Origin: https://santiagopostacchini.github.io" https://asriel.<tu-subdominio>.workers.dev/turn
 ```
 
 Debe devolver `{"iceServers":[…]}`. En la página, `?relay=1` fuerza a pasar siempre por TURN
