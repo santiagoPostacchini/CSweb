@@ -1,0 +1,151 @@
+/* Piel A · "Steam 2003 / VGUI": ventanas biseladas de verde oliva. Ver docs/diseno/direcciones.md */
+
+/* CSS anidado: todo lo de esta piel vale sólo bajo html:not([data-tema="b"]). Para elegir una piel, sacar la otra y desanidar esta. */
+html:not([data-tema="b"]) {
+    --bg: #232a1f;
+    --panel: #4a5942;
+    --inset: #2f372a;
+    --hi: #b4bba4;
+    --lo: #1c2118;
+    --text: #e6e8dc;
+    --muted: #c9d0bd;
+    --accent: #e4d768;
+    --accent-ink: #1b1d0e;
+    --ok: #9be08a;
+    --err: #ff9a82;
+    --focus: #ffffff;
+    --font: Tahoma, Verdana, "Segoe UI", system-ui, sans-serif;
+    --mono: "Lucida Console", Consolas, ui-monospace, monospace;
+    --fs: 14px;
+    --pad: 18px;
+    --panel-w: 440px;
+    color-scheme: dark;
+
+    body {
+        background:
+            linear-gradient(#ffffff09 1px, transparent 1px) 0 0 / 32px 32px,
+            linear-gradient(90deg, #ffffff09 1px, transparent 1px) 0 0 / 32px 32px,
+            var(--bg);
+    }
+    body.playing { background: #000; }
+
+    /* ventana: borde biselado + sombra dura, sin radios */
+    .panel {
+        scrollbar-width: thin;
+        scrollbar-color: var(--hi) var(--inset);
+        background: var(--panel);
+        border: 2px solid;
+        border-color: var(--hi) var(--lo) var(--lo) var(--hi);
+        box-shadow: 0 0 0 1px #000, 8px 8px 0 #0009;
+    }
+
+    /* barra de título de la ventana */
+    header {
+        margin: calc(var(--pad) * -1) calc(var(--pad) * -1) var(--pad);
+        padding: 10px var(--pad);
+        background: linear-gradient(#3d4836, #333c2d);
+        border-bottom: 1px solid var(--lo);
+        box-shadow: 0 1px 0 var(--hi);
+    }
+    .logo svg { width: 36px; height: 36px; stroke-width: 6; }
+    h1 { font-size: 18px; letter-spacing: .2px; color: var(--accent); }
+    .sub { color: var(--muted); font-size: 12px; }
+
+    h2 {
+        margin: 4px 0 10px; font-size: 12px; font-weight: 700; color: var(--accent);
+        padding-bottom: 6px; border-bottom: 1px solid var(--lo); box-shadow: 0 1px 0 var(--hi);
+    }
+    label { color: var(--muted); font-size: 12px; }
+    .divider { margin: 20px 0 14px; color: var(--muted); font-size: 12px; }
+    .divider::before, .divider::after { height: 2px; border-top: 1px solid var(--lo); border-bottom: 1px solid var(--hi); }
+
+    /* campos hundidos */
+    input:not([type=checkbox]), select {
+        color: var(--text); background: var(--inset); padding: 8px 10px; border-radius: 0;
+        border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+    }
+    input::placeholder { color: #a9b39b; }
+    input:focus, select:focus { border-color: var(--lo) var(--hi) var(--hi) var(--lo); outline: 2px dotted var(--focus); outline-offset: 1px; }
+    form.inline input { letter-spacing: 1px; }
+
+    /* casillas */
+    input[type=checkbox] {
+        background: var(--inset); border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+    }
+    input[type=checkbox]:checked {
+        background: var(--inset) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 4.8' fill='none' stroke='%23e4d768' stroke-width='2.6'/%3E%3C/svg%3E") center / 100% no-repeat;
+    }
+    input[type=checkbox]:focus-visible { outline: 2px dotted var(--focus); outline-offset: 2px; }
+    label.check { color: var(--text); font-size: 13px; }
+
+    /* botones: elevados, con el principal en amarillo VGUI */
+    button, .btn-secondary {
+        font-size: 14px; font-weight: 700; color: var(--text); background: var(--panel); border-radius: 0;
+        border: 2px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); padding: 8px 14px;
+        box-shadow: 0 0 0 1px #000;
+    }
+    button:hover, .btn-secondary:hover { background: #55664c; }
+    button:active, .btn-secondary:active { border-color: var(--lo) var(--hi) var(--hi) var(--lo); padding: 9px 13px 7px 15px; }
+    button:focus-visible, .btn-secondary:focus-visible, label.btn-secondary:focus-within { outline: 2px dotted var(--focus); outline-offset: 3px; }
+    #host-btn, #join-view > button, form.inline button, #invite-copy, #play {
+        color: var(--accent-ink); background: var(--accent); border-color: #f6efa6 #8c8128 #8c8128 #f6efa6; text-shadow: 0 1px 0 #f6efa6aa;
+    }
+    #host-btn:hover, #join-view > button:hover, form.inline button:hover, #invite-copy:hover, #play:hover { background: #efe27a; }
+    button:disabled { opacity: 1; color: #8c9684; background: #3d4836; border-color: #566250 #2a3225 #2a3225 #566250; text-shadow: none; box-shadow: none; }
+
+    .hint { color: var(--muted); font-size: 12px; }
+    .hint a, .note a { color: var(--accent); }
+    .hint code, code { font: 12px var(--mono); word-break: break-all; }
+
+    /* cajas informativas hundidas */
+    .server, .files {
+        background: var(--inset); padding: 10px 12px; margin-bottom: 14px; border-radius: 0;
+        border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+    }
+    .server .row span, .files .row span { color: var(--muted); font-size: 12px; }
+    .server .row strong { color: var(--accent); font-weight: 700; }
+    .files .row { align-items: baseline; }
+    #files-status { color: var(--text); }
+    #files-status.ok { color: var(--ok); }
+
+    .note { color: var(--text); background: #5b6a4e; padding: 8px 10px; font-size: 12px; border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+    .error { color: var(--err); background: var(--inset); padding: 8px 10px; border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+    .error::before { content: "ERROR · "; font-weight: 700; }
+
+    .help, .advanced, .diag { color: var(--muted); font-size: 12px; }
+    summary { color: var(--text); font-weight: 700; }
+    summary::marker { color: var(--accent); }
+    .advanced { margin: 4px 0 4px; }
+    kbd { font: 700 11px var(--mono); color: var(--text); background: var(--panel); padding: 1px 5px; border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+
+    .diag pre { font: 12px/1.4 var(--mono); color: var(--text); background: var(--inset); padding: 8px; border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+
+    /* carga: barra de bloques, como la de Steam */
+    #loading-text { font-weight: 700; color: var(--text); }
+    .progress { height: 24px; padding: 3px; background: var(--inset); border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+    #bar { background: repeating-linear-gradient(90deg, var(--accent) 0 9px, transparent 9px 12px); }
+    #loading { width: min(380px, calc(100vw - 32px)); }
+
+    /* toast: tooltip biselado */
+    #toast {
+        color: var(--text); background: var(--inset); padding: 9px 14px; font-size: 13px; border-radius: 0;
+        border: 2px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 0 0 0 1px #000, 4px 4px 0 #0009;
+    }
+
+    /* cartel de invitación: una barra de herramientas biselada */
+    #invite {
+        background: var(--panel); padding: 5px 5px 5px 12px; font-size: 13px; border-radius: 0;
+        border: 2px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 0 0 0 1px #000, 4px 4px 0 #0009;
+    }
+    #invite code { color: var(--accent); }
+    #invite button { padding: 5px 12px; font-size: 13px; min-height: 40px; }
+    #invite #invite-handoff { color: var(--text); background: var(--panel); border-color: var(--hi) var(--lo) var(--lo) var(--hi); text-shadow: none; }
+    #invite #invite-handoff.suggested { color: var(--accent-ink); background: var(--accent); border-color: #f6efa6 #8c8128 #8c8128 #f6efa6; }
+
+    @media (pointer: coarse) {
+        & { --fs: 15px; }
+        #invite button { min-height: 44px; }
+        button, .btn-secondary, input:not([type=checkbox]), select { min-height: 44px; }
+    }
+    @media (max-width: 480px) { & { --pad: 14px; } }
+}
