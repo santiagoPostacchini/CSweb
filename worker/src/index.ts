@@ -66,18 +66,26 @@ export default {
         const ip = request.headers.get('CF-Connecting-IP') ?? 'desconocida';
         if (rateLimited(ip, Date.now())) return json({ error: 'demasiadas solicitudes' }, 429, origin);
 
-        if (!env.TURN_KEY_ID || !env.TURN_API_TOKEN) return json({ error: 'Worker sin configurar' }, 500, origin);
+        // al cargar un secreto a mano es fácil que se cuele un espacio o un salto de línea
+        const keyId = (env.TURN_KEY_ID ?? '').trim();
+        const token = (env.TURN_API_TOKEN ?? '').trim();
+        if (!keyId || !token) return json({ error: 'Worker sin configurar' }, 500, origin);
 
         const ttl = Math.min(Math.max(Number(env.TURN_TTL) || 86400, 600), 172800);
         const res = await fetch(
-            `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(env.TURN_KEY_ID)}/credentials/generate-ice-servers`,
+            `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(keyId)}/credentials/generate-ice-servers`,
             {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${env.TURN_API_TOKEN}`, 'Content-Type': 'application/json' },
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ttl }),
             },
         );
-        if (!res.ok) return json({ error: `Cloudflare respondió ${res.status}` }, 502, origin);
+        if (!res.ok) {
+            // Para diagnosticar un Key ID / token mal cargado: el cuerpo de la respuesta y las longitudes
+            // (nunca los valores). Un Key ID de Cloudflare TURN tiene 32 caracteres y el token 64.
+            const detail = (await res.text().catch(() => '')).slice(0, 300);
+            return json({ error: `Cloudflare respondió ${res.status}`, detail, keyIdLength: keyId.length, tokenLength: token.length }, 502, origin);
+        }
         return json(await res.json(), 200, origin);
     },
 };
