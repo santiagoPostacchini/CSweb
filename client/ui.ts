@@ -41,10 +41,16 @@ export function enterGame(canvas: HTMLCanvasElement) {
     canvas.focus();
 }
 
+// La página se recarga a propósito (por ejemplo al migrar de anfitrión): sin pedir confirmación
+let unloadAllowed = false;
+export function allowUnload() {
+    unloadAllowed = true;
+}
+
 // Bloqueo de atajos del navegador + pantalla completa (Ctrl+W deja de cerrar la pestaña)
 export function setupGameGuards(canvas: HTMLCanvasElement, fullscreenInput: HTMLInputElement) {
     const lockSupport = keyboardLockSupport();
-    guardShortcuts(isPlaying);
+    guardShortcuts(() => isPlaying() && !unloadAllowed);
     canvas.addEventListener('mousedown', () => {
         // el click en el juego es un gesto del usuario: sirve para volver a pantalla completa
         if (isPlaying() && fullscreenInput.checked && !document.fullscreenElement) enterFullscreen();

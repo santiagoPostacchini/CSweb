@@ -6,7 +6,7 @@ Jugá CS 1.6 con tus compañeros desde el navegador, **sin instalar nada**. Hay 
 |---|---|---|
 | Dónde corre el servidor | En la pestaña del anfitrión | En una PC con `INICIAR-SERVIDOR.bat` |
 | Qué instala el anfitrión | Nada (sólo tener CS 1.6 de Steam) | Node.js |
-| Si el anfitrión cierra | Se termina la partida | El servidor sigue (es dedicado) |
+| Si el anfitrión cierra | Otro jugador toma la partida (se reinicia la ronda) | El servidor sigue (es dedicado) |
 | Bots | No | Sí (YaPB) |
 
 **De la instalación original sólo se usan los assets** (mapas, modelos, sonidos, texturas) y nunca se
@@ -25,7 +25,7 @@ todos open source.
    "subir" los archivos: no se sube nada a internet, sólo se leen en tu navegador (~20 s) y quedan guardados para la próxima.
 2. Elegí mapa y cantidad de jugadores → **Crear partida**.
 3. Arriba aparece el **link para invitar** (y un código). Pasáselo a tus compañeros.
-   El servidor corre en tu pestaña: dejala abierta (y al frente) mientras juegan.
+   El servidor corre en tu pestaña: dejala abierta (y al frente) mientras juegan. Si la cerrás, otro jugador toma la partida.
 
 **Unirse (invitados)**
 1. Abrí el link (o poné el código en la página) → **Unirse**.
@@ -52,9 +52,15 @@ Cómo funciona por dentro:
 - Dejá marcada **"Mejorar la conexión en la red local"**: pide permiso de micrófono porque, con ese permiso, el navegador
   usa la IP local real en vez de un nombre `.local` (mDNS) que muchas redes corporativas y hotspots no dejan resolver.
   Conviene que lo acepten anfitrión e invitados. (El micrófono también sirve para el chat de voz del juego.)
-- **Redes distintas** (otra oficina, datos móviles, entre un hotspot y la red de la empresa): hace falta un servidor
-  **TURN**. El anfitrión lo carga en *Crear partida → Opciones de red (avanzado)*; los invitados no necesitan nada.
-  Hay planes gratuitos (por ejemplo metered.ca o Cloudflare).
+- **Redes distintas** (otra oficina, datos móviles, entre un hotspot y la red de la empresa): cuando la conexión directa
+  no es posible el tráfico pasa por un servidor **TURN** automático (Cloudflare, gratis). Quien publica la página tiene que
+  desplegar una vez el Worker de `worker/` (ver [worker/README.md](worker/README.md)); los jugadores no configuran nada.
+  La página muestra arriba "Tu red: …" con el tipo de NAT y si hay relay disponible. `?relay=1` en la URL fuerza el uso
+  del relay (para probarlo). Si preferís tu propio TURN, *Crear partida → Opciones de red (avanzado)* sigue funcionando.
+- **Si el anfitrión se desconecta, la partida sigue**: los jugadores que ya tienen los archivos guardados (y no están en
+  celular) pueden tomar el servidor. El que entró primero lo levanta solo en la misma sala y los demás se reconectan solos
+  (unos 5-10 s). Se reinicia la ronda y el marcador, no el grupo ni el mapa inicial. Se vuelve a pedir un click para
+  capturar el mouse (y volver a pantalla completa).
 - Si algo falla aparece **"Diagnóstico de conexión"** con el detalle de cada paso (candidatos ICE, tipo de camino, etc.):
   tocá *Copiar diagnóstico* y mandalo.
 - Si la red directamente no deja conectar equipos entre sí (Wi-Fi con aislamiento de clientes), usá el servidor dedicado LAN.
