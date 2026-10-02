@@ -8,6 +8,15 @@ import { SERVER_IP, SERVER_PORT } from '../engine';
 // Puerto en el que el motor abre el socket del servidor (cvar hostport)
 const HOST_PORT = 27015;
 const REMOTE_CLIENT_PORT = 27005;
+// Contrapresión del canal del juego: si la red no da abasto, el navegador acumula lo que no pudo
+// mandar. Pasado este límite (~medio segundo de tráfico) se descartan paquetes, como haría UDP,
+// en vez de entregar todo con segundos de retraso.
+const MAX_BUFFERED = 64 * 1024;
+
+function sendDatagram(ch: RTCDataChannel | undefined, data: ArrayBufferView<ArrayBuffer>) {
+    if (ch?.readyState !== 'open' || ch.bufferedAmount > MAX_BUFFERED) return;
+    ch.send(data);
+}
 
 class Queue<T> {
     private items: (T | undefined)[];
@@ -85,15 +94,12 @@ export class Xash3DP2P extends Xash3D {
     sendto(packet: Packet) {
         const data = packet.data as unknown as ArrayBufferView<ArrayBuffer>;
         if (this.isHost) {
-            const peer = this.peersByIp.get(packet.ip.join('.'));
-            if (peer?.channel.readyState === 'open') peer.channel.send(data);
+            sendDatagram(this.peersByIp.get(packet.ip.join('.'))?.channel, data);
             return;
         }
-        const ch = this.hostChannel;
-        if (!ch || ch.readyState !== 'open') return;
         const [a, b, c, d] = packet.ip;
         const broadcast = a === 255 && b === 255 && c === 255 && d === 255;
-        if (a === 127 || broadcast) ch.send(data);
+        if (a === 127 || broadcast) sendDatagram(this.hostChannel, data);
     }
 
     get remotePlayers() {

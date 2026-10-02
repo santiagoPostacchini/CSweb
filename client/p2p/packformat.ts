@@ -10,7 +10,11 @@ const EXCLUDED_DIRS: Record<string, string[]> = {
     valve: ['maps', 'media', 'overviews', 'cl_dlls', 'dlls', 'save', 'logs', 'controller_configs', 'downloads'],
     cstrike: ['cl_dlls', 'dlls', 'overviews', 'manual', 'save', 'logs', 'downloads'],
 };
-const EXCLUDED_EXT = new Set(['.dll', '.so', '.dylib', '.exe', '.icns', '.ico', '.dem', '.pdb', '.lib', '.vdf', '.fgd']);
+const EXCLUDED_EXT = new Set(['.dll', '.so', '.dylib', '.exe', '.icns', '.ico', '.dem', '.pdb', '.lib', '.vdf', '.fgd', '.wasm', '.js']);
+// Topes al leer un paquete (el archivo más grande de CS 1.6 pesa ~40 MB y todo junto, ~800 MB):
+// un paquete armado a mano no puede hacer que el navegador reserve memoria sin límite
+const MAX_FILE = 256 * 1024 * 1024;
+const MAX_TOTAL = 2 * 1024 * 1024 * 1024;
 
 export type SourceFile = { relPath: string; file: Blob; mtime: number };
 export type PackEntry = { path: string; file: Blob; size: number; mtime: number };
@@ -36,16 +40,24 @@ export function selectGameFiles(files: SourceFile[]): PackEntry[] | null {
     for (const f of files) {
         const full = norm(f.relPath);
         if (!full.toLowerCase().startsWith(root)) continue;
-        const rel = full.slice(root.length);
-        const [game, first, ...rest] = rel.split('/');
-        const gameKey = game.toLowerCase();
-        if (!(gameKey in EXCLUDED_DIRS) || !first) continue;
-        if (rest.length && EXCLUDED_DIRS[gameKey].includes(first.toLowerCase())) continue;
-        const dot = rel.lastIndexOf('.');
-        if (dot > rel.lastIndexOf('/') && EXCLUDED_EXT.has(rel.slice(dot).toLowerCase())) continue;
-        out.push({ path: `${gameKey}/${[first, ...rest].join('/')}`, file: f.file, size: f.file.size, mtime: f.mtime });
+        const path = gamePath(full.slice(root.length));
+        if (path) out.push({ path, file: f.file, size: f.file.size, mtime: f.mtime });
     }
     return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+// Ruta dentro del paquete ("valve/..." o "cstrike/...") si el archivo sirve para jugar, o null.
+// Se aplica al armar el paquete y también al leerlo, porque el paquete puede venir de otro jugador:
+// así nunca se escribe nada fuera de valve/ y cstrike/ ni bibliotecas que el motor pueda cargar.
+function gamePath(rel: string): string | null {
+    const [game, first, ...rest] = rel.split('/');
+    const gameKey = game.toLowerCase();
+    if (!Object.hasOwn(EXCLUDED_DIRS, gameKey) || !first) return null;
+    if ([first, ...rest].some(p => !p || p === '.' || p === '..' || /[\\:\0]/.test(p))) return null;
+    if (rest.length && EXCLUDED_DIRS[gameKey].includes(first.toLowerCase())) return null;
+    const dot = rel.lastIndexOf('.');
+    if (dot > rel.lastIndexOf('/') && EXCLUDED_EXT.has(rel.slice(dot).toLowerCase())) return null;
+    return `${gameKey}/${[first, ...rest].join('/')}`;
 }
 
 export async function packVersion(entries: PackEntry[]): Promise<string> {
@@ -92,6 +104,8 @@ export function buildPack(entries: PackEntry[], onProgress?: BuildProgress): Rea
     return source.pipeThrough(new CompressionStream('deflate-raw') as unknown as TransformStream<Uint8Array, Uint8Array>);
 }
 
+export class PackRejected extends Error {}
+
 // Descomprime y recorre el paquete, entregando cada archivo a `sink`
 export async function readPack(stream: ReadableStream<Uint8Array>, sink: (name: string, data: Uint8Array) => void) {
     const reader = stream
@@ -107,7 +121,7 @@ export async function readPack(stream: ReadableStream<Uint8Array>, sink: (name: 
         while (off < n) {
             if (pos >= chunk.length) {
                 const r = await reader.read();
-                if (r.done) throw new Error('El paquete de archivos está incompleto o dañado');
+                if (r.done) throw new Error('termina antes de tiempo');
                 chunk = r.value;
                 pos = 0;
             }
@@ -119,14 +133,26 @@ export async function readPack(stream: ReadableStream<Uint8Array>, sink: (name: 
         return out;
     };
 
-    for (;;) {
-        const h = await read(2);
-        const nameLen = h[0] | (h[1] << 8);
-        if (nameLen === 0) break;
-        const name = dec.decode(await read(nameLen));
-        const s = await read(4);
-        const size = new DataView(s.buffer).getUint32(0, true);
-        sink(name, await read(size));
+    let total = 0;
+    try {
+        for (;;) {
+            const h = await read(2);
+            const nameLen = h[0] | (h[1] << 8);
+            if (nameLen === 0) break;
+            const name = dec.decode(await read(nameLen));
+            const s = await read(4);
+            const size = new DataView(s.buffer).getUint32(0, true);
+            total += size;
+            if (gamePath(name) !== name || size > MAX_FILE || total > MAX_TOTAL) {
+                throw new PackRejected(`El paquete de archivos trae un archivo no permitido (${name.slice(0, 80)})`);
+            }
+            sink(name, await read(size));
+        }
+    } catch (e) {
+        // cualquier falla al leerlo (datos que no descomprimen, archivos que chocan entre sí, sin
+        // memoria) deja el paquete inservible: se avisa como rechazado para que se descarte
+        throw e instanceof PackRejected ? e : new PackRejected(`El paquete de archivos está dañado (${(e as Error).message})`);
+    } finally {
+        reader.cancel().catch(() => undefined);
     }
-    reader.cancel().catch(() => undefined);
 }

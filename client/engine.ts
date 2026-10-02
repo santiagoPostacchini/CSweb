@@ -80,6 +80,7 @@ export function mountExtras(fs: FS, [valveExtras, csExtras]: [ArrayBuffer, Array
 // todavía no llegaron, emscripten posterga el arranque y cualquier comando enviado antes
 // rompe el motor ("_Mem_Alloc: pool == NULL").
 export async function startEngine(x: Xash3D, onWait?: () => void, timeoutMs = 120000) {
+    restoreUserConfig(x.em!.FS);
     x.main();
     const mod = x.em!.Module as { calledRun?: boolean };
     const t0 = performance.now();
@@ -88,6 +89,44 @@ export async function startEngine(x: Xash3D, onWait?: () => void, timeoutMs = 12
         onWait?.();
         await new Promise(r => setTimeout(r, 50));
     }
+    keepUserConfig(x);
+}
+
+// ---- configuración del jugador ----
+// El motor guarda teclas, sensibilidad, hud_fastswitch, etc. en cstrike/config.cfg, dentro de su
+// sistema de archivos en memoria: se pierde al recargar, y el que viene en el paquete es el de la
+// instalación de quien lo armó (el anfitrión). Se guarda en el navegador y se repone al arrancar,
+// así cada jugador conserva la suya; la del paquete sólo se usa la primera vez.
+const CONFIG_FILE = '/rodir/cstrike/config.cfg';
+const PROFILE = new URLSearchParams(location.search).get('perfil')?.replace(/[^a-z0-9_-]/gi, '');
+const CONFIG_KEY = PROFILE ? `csweb:config:${PROFILE}` : 'csweb:config';
+const SAVE_CONFIG_EVERY_MS = 30_000;
+
+function restoreUserConfig(fs: FS) {
+    try {
+        const saved = localStorage.getItem(CONFIG_KEY);
+        if (!saved) return;
+        fs.mkdirTree('/rodir/cstrike', 0o777);
+        fs.writeFile(CONFIG_FILE, saved);
+    } catch (e) {
+        console.warn('No se pudo reponer la configuración guardada', e);
+    }
+}
+
+// Cada tanto y al cerrar u ocultar la pestaña: el motor escribe su config.cfg y se guarda si cambió
+function keepUserConfig(x: Xash3D) {
+    const save = () => {
+        try {
+            x.Cmd_ExecuteString('host_writeconfig');
+            const text = new TextDecoder().decode(x.em!.FS.readFile(CONFIG_FILE));
+            if (text && text !== localStorage.getItem(CONFIG_KEY)) localStorage.setItem(CONFIG_KEY, text);
+        } catch { /* motor cerrándose o sin espacio: se intenta la próxima vez */ }
+    };
+    setInterval(save, SAVE_CONFIG_EVERY_MS);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') save();
+    });
+    window.addEventListener('pagehide', save);
 }
 
 export function quoteCvar(s: string) {

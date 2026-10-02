@@ -7,6 +7,8 @@
     <meta name="description" content="Counter-Strike 1.6 en el navegador: creá una partida y jugá con tus compañeros sin instalar nada.">
     <title>Counter-Strike 1.6 — en el navegador</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='22' fill='none' stroke='%23e8a33d' stroke-width='5'/%3E%3Cpath d='M32 4v16M32 44v16M4 32h16M44 32h16' stroke='%23e8a33d' stroke-width='5'/%3E%3C/svg%3E">
+    <!-- instalada como app (Chrome/Edge), la página puede bloquear Ctrl+W también en ventana -->
+    <link rel="manifest" href="/manifest.webmanifest">
     <script type="module" src="./main.ts"></script>
 </head>
 <body>
@@ -40,40 +42,60 @@
         <p class="hint"><a href="#" id="go-home">Crear mi propia partida</a></p>
     </section>
 
-    <!-- Inicio: crear o unirse -->
+    <!-- Inicio: unirse con un código o crear una partida -->
     <section id="home-view" hidden>
-        <h2>Crear partida</h2>
+        <h2>Unirse a una partida</h2>
+        <form id="code-form" class="inline">
+            <input id="code" placeholder="Código (ej. K7Q2MX)" maxlength="12" autocomplete="off">
+            <button type="submit">Unirse</button>
+        </form>
+
+        <div class="divider"><span>o creá la tuya</span></div>
+
         <div class="files">
             <div class="row">
                 <span>Archivos del juego</span>
                 <strong id="files-status">no cargados</strong>
             </div>
-            <label class="btn-secondary" for="folder">Elegir carpeta Half-Life…</label>
+            <label id="folder-btn" class="btn-secondary" for="folder">Elegir carpeta Half-Life…</label>
             <input id="folder" type="file" webkitdirectory multiple hidden>
-            <p class="hint">
-                Elegí la carpeta <b>Half-Life</b> de tu instalación de Steam
-                (normalmente <code>C:\Program Files (x86)\Steam\steamapps\common\Half-Life</code>).
-                No se sube nada a internet: tu navegador la lee y sólo la comparte con quienes entren a tu partida.
-                Quedan guardados en este navegador para la próxima.
+            <p id="folder-hint" class="hint">
+                La carpeta <b>Half-Life</b> de Steam (<code>steamapps\common\Half-Life</code>).
+                No se sube nada a internet y queda guardada en este navegador.
             </p>
         </div>
-        <div class="grid2">
-            <label class="field">Mapa
-                <select id="map"></select>
+        <label class="field">Mapa
+            <select id="map"></select>
+        </label>
+        <button id="host-btn" type="button" disabled>Crear partida</button>
+    </section>
+
+    <details id="options" class="advanced">
+        <summary>Más opciones</summary>
+        <div class="checks">
+            <label class="check">
+                <input id="fullscreen" type="checkbox" checked> <span>Pantalla completa (bloquea <kbd>Ctrl</kbd>+<kbd>W</kbd> y otros atajos)</span>
             </label>
-            <label class="field">Jugadores máx.
-                <select id="max-players"></select>
+            <label class="check">
+                <input id="better-net" type="checkbox" checked> <span>Mejorar la conexión en la red local (pide permiso de micrófono; también sirve para el chat de voz)</span>
+            </label>
+            <label class="check">
+                <input id="touch" type="checkbox"> <span>Controles táctiles</span>
             </label>
         </div>
-        <label class="field">Nombre del servidor
-            <input id="hostname" maxlength="48" value="CS 1.6 en el navegador">
-        </label>
-        <details class="advanced">
-            <summary>Opciones de red (avanzado)</summary>
+        <!-- sólo al crear una partida -->
+        <div id="host-options">
+            <div class="grid2">
+                <label class="field">Jugadores máx.
+                    <select id="max-players"></select>
+                </label>
+                <label class="field">Nombre del servidor
+                    <input id="hostname" maxlength="48" value="CS 1.6 en el navegador">
+                </label>
+            </div>
             <p class="hint">
-                Cuando la conexión directa no es posible (otra oficina, datos móviles, redes que bloquean equipos entre sí)
-                el tráfico se retransmite por un servidor <b>TURN</b> automático: no tenés que hacer nada.
-                Cargá uno propio sólo si querés usar tu servidor (por ejemplo en metered.ca) en lugar del automático.
+                Si la conexión directa no es posible, el tráfico pasa solo por un servidor <b>TURN</b> automático.
+                Cargá uno propio sólo si querés usar el tuyo (por ejemplo, de metered.ca).
             </p>
             <label class="field">URL(s) TURN
                 <input id="turn-url" placeholder="turn:servidor:3478, turns:servidor:443?transport=tcp" autocomplete="off">
@@ -86,31 +108,9 @@
                     <input id="turn-pass" type="password" autocomplete="off">
                 </label>
             </div>
-        </details>
-        <button id="host-btn" type="button" disabled>Crear partida</button>
+        </div>
+    </details>
 
-        <div class="divider"><span>o</span></div>
-
-        <h2>Unirse con un código</h2>
-        <form id="code-form" class="inline">
-            <input id="code" placeholder="Código (ej. K7Q2MX)" maxlength="12" autocomplete="off">
-            <button type="submit">Unirse</button>
-        </form>
-    </section>
-
-    <div class="checks">
-        <label class="check">
-            <input id="fullscreen" type="checkbox" checked> <span>Pantalla completa (bloquea <kbd>Ctrl</kbd>+<kbd>W</kbd> y otros atajos)</span>
-        </label>
-        <label class="check">
-            <input id="better-net" type="checkbox" checked> <span>Mejorar la conexión en la red local (pide permiso de micrófono; también sirve para el chat de voz)</span>
-        </label>
-        <label class="check">
-            <input id="touch" type="checkbox"> <span>Controles táctiles</span>
-        </label>
-    </div>
-
-    <p id="net-check" class="hint" hidden></p>
     <p id="lock-hint" class="note" hidden></p>
     <p id="error" class="error" hidden></p>
     <details id="diag" class="diag" hidden>
@@ -122,8 +122,8 @@
     <details class="help">
         <summary>Cómo funciona / controles</summary>
         <ul>
-            <li>El que crea la partida es el <b>anfitrión</b>: el servidor corre en su pestaña. Si la cierra, se termina la partida.</li>
-            <li>Los demás entran con el link o el código y reciben los archivos del juego desde el anfitrión (una sola vez).</li>
+            <li>El que crea la partida es el <b>anfitrión</b>: el servidor corre en su pestaña. Si la cierra, otro jugador toma la partida solo (se reinicia la ronda).</li>
+            <li>Los demás entran con el link o el código y reciben los archivos del juego de los otros jugadores la primera vez; después quedan guardados.</li>
             <li><kbd>Click</kbd> captura el mouse · <kbd>Esc</kbd> menú · mantené <kbd>Esc</kbd> para salir de pantalla completa</li>
             <li><kbd>M</kbd> equipo · <kbd>B</kbd> comprar · <kbd>1</kbd>–<kbd>9</kbd> opciones · <kbd>Y</kbd> chat · <kbd>Tab</kbd> puntajes · <kbd>`</kbd> consola</li>
         </ul>
@@ -141,6 +141,7 @@
     <span id="invite-players">1 jugador</span>
     <code id="invite-link"></code>
     <button id="invite-copy" type="button">Copiar link</button>
+    <button id="invite-handoff" type="button" hidden>Pasar anfitrión</button>
 </div>
 
 <div id="toast" role="status"></div>
