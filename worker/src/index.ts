@@ -60,8 +60,10 @@ export default {
 
         if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
         if (url.pathname !== '/turn' || request.method !== 'GET') return json({ error: 'no encontrado' }, 404, origin);
-        // Las páginas de otros sitios no deben poder gastar el cupo desde el navegador de un tercero
-        if (request.headers.has('Origin') && !origin) return json({ error: 'origen no permitido' }, 403, null);
+        // Sólo la página del juego: los navegadores siempre mandan Origin en un pedido entre sitios.
+        // Fuera de un navegador se puede falsificar, así que esto es una barrera más, no la única:
+        // el freno real al abuso es el límite de uso y la alerta en Cloudflare.
+        if (!origin) return json({ error: 'origen no permitido' }, 403, null);
 
         const ip = request.headers.get('CF-Connecting-IP') ?? 'desconocida';
         if (rateLimited(ip, Date.now())) return json({ error: 'demasiadas solicitudes' }, 429, origin);
@@ -81,10 +83,11 @@ export default {
             },
         );
         if (!res.ok) {
-            // Para diagnosticar un Key ID / token mal cargado: el cuerpo de la respuesta y las longitudes
-            // (nunca los valores). Un Key ID de Cloudflare TURN tiene 32 caracteres y el token 64.
+            // El detalle queda sólo en los registros del Worker (npx wrangler tail), no en la respuesta.
+            // Un Key ID de Cloudflare TURN tiene 32 caracteres y el token 64.
             const detail = (await res.text().catch(() => '')).slice(0, 300);
-            return json({ error: `Cloudflare respondió ${res.status}`, detail, keyIdLength: keyId.length, tokenLength: token.length }, 502, origin);
+            console.error(`Cloudflare respondió ${res.status}: ${detail} (largo del Key ID ${keyId.length}, del token ${token.length})`);
+            return json({ error: `Cloudflare respondió ${res.status}` }, 502, origin);
         }
         return json(await res.json(), 200, origin);
     },
