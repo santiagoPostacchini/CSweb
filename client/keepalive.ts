@@ -10,6 +10,10 @@ type Pending = { cb: FrameRequestCallback; since: number; done: boolean; id: num
 const STALL_MS = 100;
 const pending = new Map<number, Pending>();
 
+// Último frame entregado (para detectar si el motor dejó de pedir frames)
+let lastFrame = performance.now();
+export const lastFrameAt = () => lastFrame;
+
 const worker = new Worker(URL.createObjectURL(new Blob(
     ['setInterval(() => postMessage(0), 50);'],
     { type: 'text/javascript' },
@@ -23,6 +27,7 @@ worker.onmessage = () => {
         nativeCancel(p.id);
         if (!p.done) {
             p.done = true;
+            lastFrame = now;
             p.cb(now);
         }
     }
@@ -34,6 +39,7 @@ window.requestAnimationFrame = (cb: FrameRequestCallback): number => {
         pending.delete(p.id);
         if (p.done) return;
         p.done = true;
+        lastFrame = performance.now();
         cb(t);
     });
     pending.set(p.id, p);

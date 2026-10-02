@@ -35,10 +35,51 @@ export function engineOptions(canvas: HTMLCanvasElement): Xash3DOptions {
             '/rodir/filesystem_stdio.wasm': filesystemURL,
         },
         module: {
-            print: (s: string) => console.log(s),
-            printErr: (s: string) => console.warn(s),
+            print: (s: string) => {
+                logEngine(s);
+                console.log(s);
+            },
+            printErr: (s: string) => {
+                logEngine(s);
+                console.warn(s);
+            },
+            onAbort: (what: unknown) => {
+                const reason = String(what);
+                logEngine(`ABORT: ${reason}`);
+                abortHandler?.(reason);
+            },
+            // Este build del motor no tiene Asyncify: si llama a emscripten_sleep (para esperar o no
+            // gastar CPU), en vez de dormir aborta, y el juego queda congelado con el último sonido en
+            // loop. Se reemplaza por una función que no hace nada: el ritmo de los frames ya lo pone el
+            // navegador.
+            instantiateWasm: (imports: WebAssembly.Imports, receive: (i: WebAssembly.Instance, m: WebAssembly.Module) => void) => {
+                (imports.env as Record<string, unknown>).emscripten_sleep = () => undefined;
+                logEngine('[página] emscripten_sleep reemplazado (no aborta)');
+                WebAssembly.instantiateStreaming(fetch(xashURL), imports)
+                    .catch(() => fetch(xashURL).then(r => r.arrayBuffer()).then(b => WebAssembly.instantiate(b, imports)))
+                    .then(({ instance, module }) => receive(instance, module))
+                    .catch((e) => {
+                        logEngine(`no se pudo cargar el motor: ${(e as Error).message}`);
+                        abortHandler?.(`no se pudo cargar el motor: ${(e as Error).message}`);
+                    });
+                return {};
+            },
         } as never,
     };
+}
+
+// Últimas líneas de la consola del motor, para el diagnóstico si algo falla
+const engineLines: string[] = [];
+function logEngine(line: string) {
+    engineLines.push(line);
+    if (engineLines.length > 80) engineLines.shift();
+}
+export const engineLogTail = () => engineLines.join('\n');
+
+// El motor se detuvo (abort): la página avisa en vez de quedar congelada
+let abortHandler: ((reason: string) => void) | null = null;
+export function onEngineAbort(fn: (reason: string) => void) {
+    abortHandler = fn;
 }
 
 // extras.pk3 del motor (fuentes TTF del menú, etc.) y de CS16Client (bots, menús táctiles...)

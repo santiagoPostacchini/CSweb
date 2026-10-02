@@ -2,8 +2,8 @@
 // o unirse a una con un link/código. Los archivos del juego los aporta el anfitrión desde su
 // instalación local y se los pasa directo a cada invitado por WebRTC.
 import '../style.css';
-import '../keepalive';
-import { SERVER_ADDRESS, createFsSink, engineOptions, fetchExtras, mountExtras, playerCommands, quoteCvar, startEngine } from '../engine';
+import { lastFrameAt } from '../keepalive';
+import { SERVER_ADDRESS, createFsSink, engineLogTail, engineOptions, fetchExtras, mountExtras, onEngineAbort, playerCommands, quoteCvar, startEngine } from '../engine';
 import { $, allowUnload, defaultTouch, enterGame, esc, isPlaying, lockHintHtml, mb, savedName, setLoading, setupGameGuards, showToast } from '../ui';
 import { Xash3DP2P } from './p2pnet';
 import { PackRejected, buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
@@ -43,14 +43,37 @@ function logNetCheck() {
         .catch(() => undefined);
 }
 
+// Diagnóstico completo: la red y las últimas líneas de la consola del motor
+const fullDiag = () => `${diag.text()}\n\n--- consola del motor ---\n${engineLogTail()}`;
+
 function showError(msg: string) {
     $('loading').hidden = true;
     lobby.hidden = false;
     errorBox.hidden = false;
     errorBox.innerHTML = esc(msg).replace(/\n/g, '<br>');
     $('diag').hidden = false;
-    $('diag-text').textContent = diag.text();
+    $('diag-text').textContent = fullDiag();
 }
+
+// El motor se detuvo (abort o dejó de pedir frames): en vez de dejar el juego congelado con el
+// sonido en loop, se sale de la captura y se muestra el error con el diagnóstico
+let engineStopped = false;
+function stopForEngine(reason: string) {
+    if (engineStopped) return;
+    engineStopped = true;
+    diag.log(`el motor se detuvo: ${reason}`);
+    document.exitPointerLock?.();
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
+    document.body.classList.remove('playing');
+    allowUnload();
+    showError('El juego se detuvo por un error del motor. Recargá la página para volver a entrar; '
+        + `si se repite, copiá el diagnóstico y pasalo. (${reason.slice(0, 200)})`);
+}
+onEngineAbort(stopForEngine);
+setInterval(() => {
+    if (isPlaying() && performance.now() - lastFrameAt() > 8000) stopForEngine('dejó de dar frames');
+}, 2000);
+window.addEventListener('error', (e) => diag.log(`error de la página: ${e.message}`));
 
 function clearError() {
     errorBox.hidden = true;
@@ -59,7 +82,7 @@ function clearError() {
 
 $('diag-copy').addEventListener('click', async () => {
     try {
-        await navigator.clipboard.writeText(diag.text());
+        await navigator.clipboard.writeText(fullDiag());
         showToast('Diagnóstico copiado');
     } catch {
         showToast('No se pudo copiar: seleccioná el texto a mano');
