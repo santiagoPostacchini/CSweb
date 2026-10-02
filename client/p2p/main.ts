@@ -9,6 +9,7 @@ import { Xash3DP2P } from './p2pnet';
 import { buildPack, mapsOf, packVersion, readPack, selectGameFiles, type SourceFile } from './packformat';
 import { PackWriter, getMeta, getPackBlob, persistStorage, writeStream, type PackMeta } from './store';
 import { GuestRoom, HostRoom, newRoomCode, normalizeCode, selfId, type GameInfo } from './room';
+import { Swarm } from './swarm';
 import { giveUpAfter, planMigration, saveMigration, takeMigration, takeoverDelay, type Migration } from './migration';
 import { checkNetwork, diag, hasAutoRelay, loadTurn, prepareIce, releaseMic, saveTurn, unlockLocalAddresses, type TurnSettings } from './netdiag';
 
@@ -239,7 +240,7 @@ async function runHost({ pack, name, touch, map, maxPlayers, hostname, turn, cod
     });
     const transfers = new Map<string, number>();
     diag.log(`partida creada, código ${code}, epoch ${epoch}${turn ? ' (con TURN)' : ''}`);
-    new HostRoom(code, {
+    const room = new HostRoom(code, {
         info,
         pack: () => getPackBlob(pack),
         onPlayer: (id, channel) => x.addPeer(id, channel),
@@ -256,6 +257,8 @@ async function runHost({ pack, name, touch, map, maxPlayers, hostname, turn, cod
             rejoinAsGuest(code, winnerEpoch);
         },
     }, turn, epoch);
+    // el anfitrión también es una fuente del enjambre de archivos
+    new Swarm(room.signaling, () => pack);
 
     $('invite-link').textContent = link;
     $('invite-copy').onclick = async () => {
@@ -439,6 +442,8 @@ async function joinGame(guest: GuestRoom, waitMs = 30000) {
         if (isPlaying()) beginMigration(guest);
     };
     const info = await guest.waitHost(waitMs);
+    // el enjambre también sirve a otros jugadores cuando este ya tiene los archivos
+    const swarm = new Swarm(guest.signaling, () => meta);
     setLoading('Conectando con el anfitrión…');
     const how = await guest.connect(30000);
     showToast(`Conectado con el anfitrión (${how})`, 5000);
@@ -447,20 +452,32 @@ async function joinGame(guest: GuestRoom, waitMs = 30000) {
         if (how.includes('TURN')) {
             showToast(`Conexión por relay: la primera descarga (~${mb(info.pack.size)}) usa el cupo compartido y puede tardar más`, 9000);
         }
-        const writer = new PackWriter(info.pack.version);
         const t0 = performance.now();
         let last = 0;
-        setLoading('Recibiendo archivos del juego del anfitrión…', '', 0);
-        await guest.download(info.pack.size, async (chunk, received) => {
-            writer.push(chunk);
-            await writer.drain();
+        const progress = (received: number, sources: string) => {
             const now = performance.now();
             if (now - last < 200 && received < info.pack.size) return;
             last = now;
             const speed = received / 1048576 / Math.max(0.001, (now - t0) / 1000);
-            setLoading('Recibiendo archivos del juego del anfitrión…',
-                `${mb(received)} de ${mb(info.pack.size)} · ${speed.toFixed(1)} MB/s`, received / info.pack.size);
-        });
+            setLoading('Recibiendo archivos del juego…',
+                `${mb(received)} de ${mb(info.pack.size)} · ${speed.toFixed(1)} MB/s${sources}`, received / info.pack.size);
+        };
+        setLoading('Recibiendo archivos del juego…', '', 0);
+        let writer = new PackWriter(info.pack.version);
+        try {
+            // primero por el enjambre: el paquete se baja entre todos los jugadores que ya lo tienen
+            await swarm.download(info.pack.version, info.pack.size, guest.hostPeerId!, writer,
+                (received, n) => progress(received, n > 1 ? ` · ${n} fuentes` : ''));
+        } catch (e) {
+            // sin enjambre (anfitrión viejo, sin fuentes, se frenó): descarga directa del anfitrión
+            diag.log(`enjambre no disponible (${(e as Error).message}): descarga directa del anfitrión`);
+            writer = new PackWriter(info.pack.version);
+            await guest.download(info.pack.size, async (chunk, received) => {
+                writer.push(chunk);
+                await writer.drain();
+                progress(received, '');
+            });
+        }
         diag.log(`archivos recibidos en ${((performance.now() - t0) / 1000).toFixed(0)} s`);
         meta = await writer.finish({ files: info.pack.files, unpacked: info.pack.unpacked, maps: info.pack.maps });
         await persistStorage();

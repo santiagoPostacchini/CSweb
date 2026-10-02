@@ -277,6 +277,11 @@ export class HostRoom {
         this.timer = window.setInterval(() => this.announce(), 5000);
     }
 
+    // la sala de señalización (para el enjambre de archivos)
+    get signaling(): RoomLike {
+        return this.room;
+    }
+
     private roster(): RosterEntry[] {
         return [...this.seqs.entries()]
             .filter(([id]) => this.links.has(id))
@@ -370,6 +375,11 @@ export class GuestRoom {
 
     get hostPeerId() {
         return this.hostId;
+    }
+
+    // la sala de señalización (para el enjambre de archivos)
+    get signaling(): RoomLike {
+        return this.room;
     }
 
     private join() {

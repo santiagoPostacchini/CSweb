@@ -29,7 +29,9 @@ todos open source.
 
 **Unirse (invitados)**
 1. Abrí el link (o poné el código en la página) → **Unirse**.
-2. La primera vez se reciben ~240 MB de archivos del juego **directo desde el anfitrión** (unos 30-60 s en la misma red);
+2. La primera vez se reciben ~240 MB de archivos del juego **entre todos los jugadores que ya los tienen** (el anfitrión y
+   los invitados anteriores; cada trozo se verifica con su hash, y si el enjambre no está disponible se baja directo del
+   anfitrión). Unos 20-60 s en la misma red;
    después quedan guardados en el navegador. Quien ya recibió los archivos también puede crear partidas.
 
 Cómo funciona por dentro:
